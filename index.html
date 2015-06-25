@@ -18,7 +18,7 @@
     <link rel="alternative" href="/atom.xml" title="sevencm blog" type="application/atom+xml">
   
   
-    <link rel="icon" href="/favicon.png">
+    <link rel="icon" href="/img/logo.ico">
   
   <link rel="stylesheet" href="/css/style.css" type="text/css">
 </head>
@@ -188,7 +188,7 @@
 </ol>
 <p>在上面代码中，我们在第三行设置断点，进入debug模式,如下图：<br><img src="http://7xjykn.com1.z0.glb.clouddn.com/blog/thread-01-01.jpg" alt="thread-01-01"></p>
 <p>  可以看到，程序在退出的时候，执行了Thread.exit()。通过反编译，可以得到以下代码：<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">   <span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">exit</span><span class="params">()</span> </span>&#123;</span><br><span class="line">	<span class="keyword">if</span> (<span class="keyword">this</span>.group != <span class="keyword">null</span>) &#123;</span><br><span class="line">		<span class="keyword">this</span>.group.threadTerminated(<span class="keyword">this</span>);</span><br><span class="line">		<span class="keyword">this</span>.group = <span class="keyword">null</span>;</span><br><span class="line">	&#125;</span><br><span class="line">	<span class="keyword">this</span>.target = <span class="keyword">null</span>;</span><br><span class="line">	<span class="keyword">this</span>.threadLocals = <span class="keyword">null</span>;</span><br><span class="line">	<span class="keyword">this</span>.inheritableThreadLocals = <span class="keyword">null</span>;</span><br><span class="line">	<span class="keyword">this</span>.inheritedAccessControlContext = <span class="keyword">null</span>;</span><br><span class="line">	<span class="keyword">this</span>.blocker = <span class="keyword">null</span>;</span><br><span class="line">	<span class="keyword">this</span>.uncaughtExceptionHandler = <span class="keyword">null</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
-<p>看见，正如第1点所说的那样：“每个Java程序至少都有一个执行的线程”。</p>
+<p>可见，正如第1点所说的那样：“每个Java程序至少都有一个执行的线程”。</p>
 
       
     </div>
