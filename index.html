@@ -99,7 +99,7 @@
 				
 				<section class="switch-part switch-part2">
 					<div class="widget tagcloud" id="js-tagcloud">
-						<a href="/tags/linux/" style="font-size: 10px;">linux</a> <a href="/tags/spring/" style="font-size: 10px;">spring</a>
+						<a href="/tags/linux/" style="font-size: 10px;">linux</a> <a href="/tags/spring/" style="font-size: 10px;">spring</a> <a href="/tags/sqlServer/" style="font-size: 10px;">sqlServer</a>
 					</div>
 				</section>
 				
@@ -154,6 +154,61 @@
 	</div>
 </nav>
       <div class="body-wrap">
+  
+    <article id="post-SqlServer" class="article article-type-post" itemscope itemprop="blogPost">
+  
+    <div class="article-meta">
+      <a href="/2015/11/22/SqlServer/" class="article-date">
+  	<time datetime="2015-11-22T13:11:28.000Z" itemprop="datePublished">2015-11-22</time>
+</a>
+    </div>
+  
+  <div class="article-inner">
+    
+      <input type="hidden" class="isFancy" />
+    
+    
+      <header class="article-header">
+        
+  
+    <h1 itemprop="name">
+      <a class="article-title" href="/2015/11/22/SqlServer/">SqlServer</a>
+    </h1>
+  
+
+      </header>
+      
+    
+    <div class="article-entry" itemprop="articleBody">
+      
+        <p>1、创建存储过程<br><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="operator"><span class="keyword">Create</span> proc proc_name</span><br><span class="line"><span class="keyword">as</span></span><br><span class="line"><span class="keyword">declare</span> @supp_cursor <span class="keyword">cursor</span>;</span></span><br><span class="line"><span class="operator"><span class="keyword">declare</span></span><br><span class="line">@EnName <span class="built_in">varchar</span>(<span class="number">40</span>),</span><br><span class="line">@SupplierStatus <span class="built_in">int</span>;</span></span><br><span class="line"><span class="operator"><span class="keyword">set</span> @supp_cursor = <span class="keyword">cursor</span> <span class="keyword">for</span></span><br><span class="line"><span class="keyword">select</span> [EnName]</span><br><span class="line">      ,[SupplierStatus]</span><br><span class="line">  <span class="keyword">FROM</span> [XXX_TABLE];</span></span><br><span class="line">open @supp_cursor</span><br><span class="line">fetch next from @supp_cursor</span><br><span class="line">into</span><br><span class="line">@EnName ,</span><br><span class="line">@SupplierStatus;</span><br><span class="line">while(@@FETCH_STATUS=0)</span><br><span class="line"><span class="operator"><span class="keyword">begin</span></span><br><span class="line">  print <span class="string">'DbKey:'</span> + <span class="keyword">convert</span>(<span class="built_in">varchar</span>,@DbKey);</span></span><br><span class="line">  fetch next from @supp_cursor</span><br><span class="line">into</span><br><span class="line">@EnName ,</span><br><span class="line">@SupplierStatus ;</span><br><span class="line"><span class="operator"><span class="keyword">end</span></span><br><span class="line"><span class="keyword">close</span> @supp_cursor;</span></span><br><span class="line"><span class="operator"><span class="keyword">deallocate</span> @supp_cursor;</span></span><br></pre></td></tr></table></figure></p>
+
+      
+    </div>
+    
+    <div class="article-info article-info-index">
+      
+      
+	<div class="article-tag tagcloud">
+		<ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/sqlServer/">sqlServer</a></li></ul>
+	</div>
+
+      
+
+      
+      <div class="clearfix"></div>
+    </div>
+    
+  </div>
+  
+</article>
+
+
+
+
+
+
+
   
     <article id="post-windows运维" class="article article-type-post" itemscope itemprop="blogPost">
   

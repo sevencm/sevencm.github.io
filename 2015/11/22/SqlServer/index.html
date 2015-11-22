@@ -3,18 +3,18 @@
 <head>
   <meta charset="utf-8">
   
-  <title>sevencm blog</title>
+  <title>SqlServer | sevencm blog</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <meta name="description">
+  <meta name="description" content="1、创建存储过程12345678910111213141516171819202122232425Create proc proc_nameasdeclare @supp_cursor cursor;declare@EnName varchar(40),@SupplierStatus int;set @supp_cursor = cursor forselect [EnName]      ,[S">
 <meta property="og:type" content="article">
-<meta property="og:title" content="sevencm blog">
-<meta property="og:url" content="http://sevencm.github.io/2015/10/20/ask/index.html">
+<meta property="og:title" content="SqlServer">
+<meta property="og:url" content="http://sevencm.github.io/2015/11/22/SqlServer/index.html">
 <meta property="og:site_name" content="sevencm blog">
-<meta property="og:description">
-<meta property="og:updated_time" content="2015-10-20T01:46:39.434Z">
+<meta property="og:description" content="1、创建存储过程12345678910111213141516171819202122232425Create proc proc_nameasdeclare @supp_cursor cursor;declare@EnName varchar(40),@SupplierStatus int;set @supp_cursor = cursor forselect [EnName]      ,[S">
+<meta property="og:updated_time" content="2015-11-22T13:13:00.144Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="sevencm blog">
-<meta name="twitter:description">
+<meta name="twitter:title" content="SqlServer">
+<meta name="twitter:description" content="1、创建存储过程12345678910111213141516171819202122232425Create proc proc_nameasdeclare @supp_cursor cursor;declare@EnName varchar(40),@SupplierStatus int;set @supp_cursor = cursor forselect [EnName]      ,[S">
   
     <link rel="alternative" href="/atom.xml" title="sevencm blog" type="application/atom+xml">
   
@@ -154,11 +154,11 @@
 		</header>				
 	</div>
 </nav>
-      <div class="body-wrap"><article id="post-ask" class="article article-type-post" itemscope itemprop="blogPost">
+      <div class="body-wrap"><article id="post-SqlServer" class="article article-type-post" itemscope itemprop="blogPost">
   
     <div class="article-meta">
-      <a href="/2015/10/20/ask/" class="article-date">
-  	<time datetime="2015-10-20T01:46:39.434Z" itemprop="datePublished">2015-10-20</time>
+      <a href="/2015/11/22/SqlServer/" class="article-date">
+  	<time datetime="2015-11-22T13:11:28.000Z" itemprop="datePublished">2015-11-22</time>
 </a>
     </div>
   
@@ -167,9 +167,32 @@
       <input type="hidden" class="isFancy" />
     
     
+      <header class="article-header">
+        
+  
+    <h1 class="article-title" itemprop="name">
+      SqlServer
+    </h1>
+  
+
+      </header>
+      
+      <div class="article-info article-info-post">
+        
+	<div class="article-tag tagcloud">
+		<ul class="article-tag-list"><li class="article-tag-list-item"><a class="article-tag-list-link" href="/tags/sqlServer/">sqlServer</a></li></ul>
+	</div>
+
+        
+
+        <div class="clearfix"></div>
+      </div>
+      
+    
     <div class="article-entry" itemprop="articleBody">
       
-        
+        <p>1、创建存储过程<br><figure class="highlight sql"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br></pre></td><td class="code"><pre><span class="line"><span class="operator"><span class="keyword">Create</span> proc proc_name</span><br><span class="line"><span class="keyword">as</span></span><br><span class="line"><span class="keyword">declare</span> @supp_cursor <span class="keyword">cursor</span>;</span></span><br><span class="line"><span class="operator"><span class="keyword">declare</span></span><br><span class="line">@EnName <span class="built_in">varchar</span>(<span class="number">40</span>),</span><br><span class="line">@SupplierStatus <span class="built_in">int</span>;</span></span><br><span class="line"><span class="operator"><span class="keyword">set</span> @supp_cursor = <span class="keyword">cursor</span> <span class="keyword">for</span></span><br><span class="line"><span class="keyword">select</span> [EnName]</span><br><span class="line">      ,[SupplierStatus]</span><br><span class="line">  <span class="keyword">FROM</span> [XXX_TABLE];</span></span><br><span class="line">open @supp_cursor</span><br><span class="line">fetch next from @supp_cursor</span><br><span class="line">into</span><br><span class="line">@EnName ,</span><br><span class="line">@SupplierStatus;</span><br><span class="line">while(@@FETCH_STATUS=0)</span><br><span class="line"><span class="operator"><span class="keyword">begin</span></span><br><span class="line">  print <span class="string">'DbKey:'</span> + <span class="keyword">convert</span>(<span class="built_in">varchar</span>,@DbKey);</span></span><br><span class="line">  fetch next from @supp_cursor</span><br><span class="line">into</span><br><span class="line">@EnName ,</span><br><span class="line">@SupplierStatus ;</span><br><span class="line"><span class="operator"><span class="keyword">end</span></span><br><span class="line"><span class="keyword">close</span> @supp_cursor;</span></span><br><span class="line"><span class="operator"><span class="keyword">deallocate</span> @supp_cursor;</span></span><br></pre></td></tr></table></figure></p>
+
       
     </div>
     
@@ -178,18 +201,9 @@
     
 <nav id="article-nav">
   
-    <a href="/2015/11/22/windows运维/" id="article-nav-newer" class="article-nav-link-wrap">
-      <strong class="article-nav-caption"><</strong>
-      <div class="article-nav-title">
-        
-          windows运维
-        
-      </div>
-    </a>
   
-  
-    <a href="/2015/10/19/搭建hexo博客/" id="article-nav-older" class="article-nav-link-wrap">
-      <div class="article-nav-title">搭建hexo博客</div>
+    <a href="/2015/11/22/windows运维/" id="article-nav-older" class="article-nav-link-wrap">
+      <div class="article-nav-title">windows运维</div>
       <strong class="article-nav-caption">></strong>
     </a>
   
@@ -218,7 +232,7 @@
 
 <div class="duoshuo">
 	<!-- 多说评论框 start -->
-	<div class="ds-thread" data-thread-key="ask" data-title="" data-url="http://sevencm.github.io/2015/10/20/ask/"></div>
+	<div class="ds-thread" data-thread-key="SqlServer" data-title="SqlServer" data-url="http://sevencm.github.io/2015/11/22/SqlServer/"></div>
 	<!-- 多说评论框 end -->
 	<!-- 多说公共JS代码 start (一个网页只需插入一次) -->
 	<script type="text/javascript">
