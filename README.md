@@ -20,7 +20,7 @@ python3 -m http.server 8000
 
 - `index.html`：首页、两系列筛选、精选作品、短笔记
 - `works.html`：拼音与数学两组作品库与筛选
-- `work-detail.html?id=pinyin-compounds-tones`：作品详情、提示词复制、参数和视频
+- `work-detail.html?id=pinyin-01-aoe`：作品详情、提示词复制、参数和视频
 - `prompts.html`：当前拼音/数学作品的提示词入口
 - `notes.html`：拼音与数学视觉笔记
 - `note.html?id=pinyin-tone-placement`：笔记详情页
@@ -37,7 +37,7 @@ python3 -m http.server 8000
 
 ## 当前真实素材
 
-- 拼音卡片：来自 `/workspace/pinyin-daily`，涵盖单韵母、声母、翘舌音、复韵母、鼻韵母和 y/w 拼写规则
+- 拼音卡片：部编一年级上册第 1–14 课教学封面（`pinyin-01-aoe` … `pinyin-14-angeng`）
 - 数学演示：来自 `sin-function-video`、`rmb-learning-video`、`clock-learning-video`
 - 本地视频：`sin-function.mp4`、`rmb-learning.mp4`、`clock-learning-zhengdian.mp4`
 - 对应封面：均放在 `assets/covers/`
