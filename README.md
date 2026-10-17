@@ -2,6 +2,8 @@
 
 纯静态行测刷题网站（GitHub Pages 托管），题库为 2016–2026 年国考 / 省考 / 联考 / 选调行测真题，共 **6 大模块 · 515 套卷 · 58,890 题**，含官方解析与 39,000+ 张题目/公式图片。
 
+> 题库来源：[ERRRC/xingcezhenti](https://github.com/ERRRC/xingcezhenti)（行测真题整理仓库），本站只做解析与练习界面。
+
 ## 功能
 
 - 📚 **六大分类**：政治理论 / 常识判断 / 言语理解与表达 / 数量关系 / 判断推理 / 资料分析
@@ -34,7 +36,7 @@ git push origin main   # 推送后 1–2 分钟自动构建
 
 ## 数据管道
 
-题库源数据为 Obsidian markdown（每套卷每模块一篇），由 `tools/` 下脚本转换为按需加载的 JSON：
+题库源数据来自 [ERRRC/xingcezhenti](https://github.com/ERRRC/xingcezhenti)，为 Obsidian markdown（每套卷每模块一篇），由 `tools/` 下脚本转换为按需加载的 JSON：
 
 | 脚本 | 作用 |
 |---|---|
@@ -66,6 +68,7 @@ python3 tools/strip_marks.py
 
 ## 数据说明
 
-- 题目来自公开整理的行测真题库（2016–2026，qid 可回溯原始题库）
+- 题库来源仓库：[ERRRC/xingcezhenti](https://github.com/ERRRC/xingcezhenti)，题目为公开整理的行测真题（2016–2026，qid 可回溯原始题库）
 - 答案取自官方题库；极少量题目答案缺失（页面会标注"答案缺失"）
 - 图片缺失 2 张（源库即为缺失），不影响使用
+- 题目与解析版权归原命题机构 / 原整理者，本站仅用于个人学习练习
