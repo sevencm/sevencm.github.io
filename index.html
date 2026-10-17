@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>行测刷题 · 2016–2026 真题</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📝</text></svg>">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand" id="brand">
+      <span class="brand-logo">📝</span>
+      <span class="brand-text">行测刷题<small>2016–2026 真题</small></span>
+    </div>
+    <nav class="tabs" id="tabs"></nav>
+  </div>
+</header>
+
+<main id="app" class="container"></main>
+
+<!-- 答题卡抽屉 -->
+<div class="drawer-mask" id="cardMask"></div>
+<aside class="drawer" id="cardDrawer">
+  <div class="drawer-head">
+    <h3>答题卡</h3>
+    <button class="icon-btn" id="cardClose">✕</button>
+  </div>
+  <div class="card-legend">
+    <span><i class="dot dot-cur"></i>当前</span>
+    <span><i class="dot dot-ans"></i>已答</span>
+    <span><i class="dot dot-right"></i>答对</span>
+    <span><i class="dot dot-wrong"></i>答错</span>
+    <span><i class="dot"></i>未答</span>
+  </div>
+  <div class="card-grid" id="cardGrid"></div>
+</aside>
+
+<!-- 模拟考试设置弹窗 -->
+<div class="modal-mask" id="mockModal">
+  <div class="modal">
+    <h3>⏱️ 模拟考试</h3>
+    <div class="form-row">
+      <label>题库范围</label>
+      <select id="mockScope"></select>
+    </div>
+    <div class="form-row">
+      <label>题目数量</label>
+      <select id="mockCount">
+        <option value="50">50 题</option>
+        <option value="100" selected>100 题</option>
+        <option value="120">120 题</option>
+        <option value="135">135 题</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>考试时长</label>
+      <select id="mockTime">
+        <option value="90">90 分钟</option>
+        <option value="120" selected>120 分钟</option>
+        <option value="150">150 分钟</option>
+      </select>
+    </div>
+    <p class="hint">系统将从所选范围随机抽取试题，每题 1 分，交卷后自动判分。</p>
+    <div class="modal-btns">
+      <button class="btn ghost" id="mockCancel">取消</button>
+      <button class="btn primary" id="mockStart">开始考试</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>

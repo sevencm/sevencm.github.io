@@ -1,0 +1,662 @@
+/* 行测刷题 SPA */
+"use strict";
+window.addEventListener("error", e => console.error("PAGEERR", e.message, e.filename, e.lineno));
+window.addEventListener("unhandledrejection", e => console.error("PAGEREJ", e.reason && e.reason.message));
+
+/* ================= 存储 ================= */
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { toast("本地存储空间不足"); } },
+};
+const PROG = () => LS.get("xq_progress", {});
+const WRONG = () => LS.get("xq_wrong", {});
+const FAV = () => LS.get("xq_fav", {});
+
+/* ================= 数据 ================= */
+const examCache = {};   // "03/0001" -> exam json
+const meta = { cats: [] };
+let catIndexCache = {}; // catId -> index array
+
+async function loadMeta() {
+  if (meta.cats.length) return meta;
+  Object.assign(meta, await fetch("data/meta.json").then(r => r.json()));
+  return meta;
+}
+async function loadCatIndex(catId) {
+  if (catIndexCache[catId]) return catIndexCache[catId];
+  const idx = await fetch(`data/${catId}/index.json`).then(r => r.json());
+  catIndexCache[catId] = idx;
+  return idx;
+}
+async function loadExam(ref) {
+  if (examCache[ref]) return examCache[ref];
+  const ex = await fetch(`data/${ref}.json`).then(r => r.json());
+  examCache[ref] = ex;
+  return ex;
+}
+function matHtml(exam, mi) {
+  if (mi == null) return null;
+  const m = exam.ms.find(x => x.i === mi);
+  return m ? m.h : null;
+}
+
+/* ================= 工具 ================= */
+const $ = s => document.querySelector(s);
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const isHtml = s => /^\s*</.test(s || "");
+const fmtTime = s => { s = Math.max(0, Math.floor(s)); const m = Math.floor(s / 60), h = Math.floor(m / 60); const ss = s % 60, mm = m % 60; return (h ? String(h).padStart(2, "0") + ":" : "") + String(mm).padStart(2, "0") + ":" + String(ss).padStart(2, "0"); };
+function setBody(v) { const app = $("#app"); app.innerHTML = ""; app.appendChild(v); window.scrollTo(0, 0); }
+let toastTimer;
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 1800); }
+const norm = s => (s || "").toUpperCase().split("").sort().join("");
+function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function isHtmlContent(s) { return isHtml(s); }
+
+/* ================= 会话状态 ================= */
+let session = null;   // {mode,title,refs,ans{},judged{},idx,timer,limit,startTs,done,examId,catId}
+let tick = null;
+
+function startTimer(countdown) {
+  clearInterval(tick);
+  if (!session.startTs) session.startTs = Date.now();
+  if (countdown && session.remain == null) session.remain = session.limit;
+  tick = setInterval(() => {
+    const tEl = $("#timer");
+    if (!tEl) return;
+    if (countdown) {
+      session.remain -= 1;
+      if (session.remain <= 0) { toast("时间到，自动交卷"); submitMock(); return; }
+      tEl.textContent = fmtTime(session.remain);
+      tEl.classList.toggle("low", session.remain < 300);
+    } else {
+      tEl.textContent = fmtTime((Date.now() - session.startTs) / 1000);
+    }
+  }, 1000);
+}
+function stopTimer() { clearInterval(tick); tick = null; }
+
+/* ================= 路由 ================= */
+window.addEventListener("hashchange", route);
+
+async function route() {
+  stopTimer();
+  const h = location.hash.slice(2) || "";
+  const [head, a, b] = h.split("/");
+  await loadMeta();
+  renderTabs();
+  if (head === "") return viewHome();
+  if (head === "cat") return viewCat(a);
+  if (head === "p") return startPractice(a, b);
+  if (head === "r") return startRandom(a);
+  if (head === "s") return session ? renderSession() : viewHome();
+  if (head === "score") return session ? renderScore() : viewHome();
+  if (head === "wrong") return startWrongFav("wrong");
+  if (head === "fav") return startWrongFav("fav");
+  viewHome();
+}
+
+/* ================= 顶栏 ================= */
+function renderTabs() {
+  const tabs = $("#tabs");
+  const cur = location.hash.slice(2);
+  const wc = Object.keys(WRONG()).length, fc = Object.keys(FAV()).length;
+  const items = [
+    ["", "📚 全部题库", ""],
+    ...meta.cats.map(c => [null, catIcon(c.id) + " " + c.name, "cat/" + c.id]),
+    ["wrong", `❌ 错题集 ${wc}`, "wrong"],
+    ["fav", `⭐ 收藏 ${fc}`, "fav"],
+    ["mock", "⏱️ 模拟考试", "#mock"],
+  ];
+  tabs.innerHTML = "";
+  for (const [key, label, href] of items) {
+    if (key === null) {
+      const t = el("button", "tab", label);
+      t.onclick = () => location.hash = "#/" + href;
+      tabs.appendChild(t);
+      continue;
+    }
+    const t = el("button", "tab", label);
+    if (key === "mock") { t.onclick = openMockModal; }
+    else {
+      const active = (key === "" && cur === "") || (key !== "" && cur.startsWith(key));
+      if (active) t.classList.add("on");
+      t.onclick = () => location.hash = "#/" + (key || "");
+    }
+    tabs.appendChild(t);
+  }
+}
+function catIcon(id) { return ({ "01": "🚩", "02": "🧠", "03": "📖", "04": "🔢", "05": "🧩", "06": "📊" })[id] || "📘"; }
+function catName(id) { const c = meta.cats.find(x => x.id === id); return c ? c.name : id; }
+
+/* ================= 首页 ================= */
+function viewHome() {
+  const wrap = el("div");
+  wrap.appendChild(el("div", "hero", `<h1>行测真题 · 刷题练习</h1><p>2016–2026 年国考 / 省考 / 联考 / 选调真题，共 ${meta.cats.reduce((s, c) => s + c.qs, 0)} 题</p>`));
+
+  const stat = el("div", "stat-row",
+    meta.cats.map(c => `<div class="stat"><b>${(c.qs / 10000).toFixed(1).replace(/\.0$/, "")} 万</b><span>${c.name}</span></div>`).join("")
+    + `<div class="stat"><b>${Object.keys(WRONG()).length}</b><span>错题待攻克</span></div>`);
+  wrap.appendChild(stat);
+
+  // 继续练习
+  const prog = PROG();
+  const conts = Object.entries(prog).filter(([k, v]) => v.i >= 0).sort((a, b) => b[1].t - a[1].t).slice(0, 3);
+  if (conts.length) {
+    const sec = el("div");
+    sec.appendChild(el("div", "sec-title", "<h2>🚀 继续练习</h2>"));
+    const list = el("div", "exam-list");
+    conts.forEach(([ref, v]) => {
+      const item = el("div", "exam-item", `<div class="meta"><div class="t">${esc(v.t2 || ref)}</div><div class="d">上次做到第 ${v.i + 1} 题</div></div><span class="badge">继续</span>`);
+      item.onclick = () => location.hash = `#/p/${ref}`;
+      list.appendChild(item);
+    });
+    sec.appendChild(list);
+    wrap.appendChild(sec);
+  }
+
+  const grid = el("div", "cat-grid");
+  for (const c of meta.cats) {
+    const card = el("div", "cat-card", `<span class="ico">${catIcon(c.id)}</span><h3>${c.name}</h3><p>${c.exams} 套卷 · ${c.qs} 题</p><span class="go">开始刷题 →</span>`);
+    card.onclick = () => location.hash = `#/cat/${c.id}`;
+    grid.appendChild(card);
+  }
+  wrap.appendChild(grid);
+  setBody(wrap);
+}
+
+/* ================= 分类试卷列表 ================= */
+async function viewCat(catId) {
+  const cat = meta.cats.find(c => c.id === catId);
+  const wrap = el("div");
+  const idx = await loadCatIndex(catId);
+  const years = [...new Set(idx.map(x => x.y).filter(Boolean))].sort().reverse();
+  const prog = PROG();
+
+  wrap.appendChild(el("div", "hero", `<h1>${catIcon(catId)} ${cat.name}</h1><p>${cat.exams} 套卷 · ${cat.qs} 题 · 点击试卷开始按顺序练习</p>`));
+
+  const tools = el("div", "list-tools");
+  const search = el("input", "search-box"); search.placeholder = "🔍 搜索试卷名称 / 地区…";
+  const yearSel = el("select", "sel");
+  yearSel.innerHTML = `<option value="">全部年份</option>` + years.map(y => `<option>${y}</option>`).join("");
+  const randomBtn = el("button", "btn primary", "🎲 随机练习 20 题");
+  randomBtn.onclick = () => location.hash = `#/r/${catId}`;
+  tools.append(search, yearSel, randomBtn);
+  wrap.appendChild(tools);
+
+  const list = el("div", "exam-list");
+  const foot = el("div", "list-foot");
+  wrap.append(list, foot);
+  setBody(wrap);
+
+  let shown = 0;
+  function renderList() {
+    const kw = search.value.trim().toLowerCase();
+    const yr = yearSel.value;
+    const items = idx.filter(x => (!kw || (x.t + x.r).toLowerCase().includes(kw)) && (!yr || x.y === yr));
+    list.innerHTML = "";
+    shown = items.length;
+    for (const x of items) {
+      const p = prog[x.id];
+      const pr = p ? Math.min(100, Math.round((p.i + 1) / x.n * 100)) : 0;
+      const item = el("div", "exam-item",
+        `<div class="meta"><div class="t">${esc(x.t)}</div><div class="d">${x.y || ""}${x.r ? " · " + x.r : ""} · ${x.n} 题</div>
+         ${pr ? `<div class="progress-mini"><i style="width:${pr}%"></i></div>` : ""}</div>
+         <span class="badge ${pr >= 100 ? "green" : "gray"}">${pr >= 100 ? "已完成" : pr > 0 ? pr + "%" : x.n + " 题"}</span>`);
+      item.onclick = () => location.hash = `#/p/${x.id}`;
+      list.appendChild(item);
+    }
+    foot.textContent = shown ? `共 ${shown} 套卷` : "没有匹配的试卷";
+  }
+  search.oninput = renderList; yearSel.onchange = renderList;
+  renderList();
+}
+
+/* ================= 题目渲染 ================= */
+function qrefKey(ref) { return ref; }
+
+function renderQuestion(container, q, exam, opts) {
+  // opts: {selected:Set, judged:bool, onToggle, onFav, fav, showAnswer, srcTitle}
+  const card = el("div", "q-card");
+  const metaRow = el("div", "q-meta");
+  metaRow.appendChild(el("span", "tag type", q.tp || "题目"));
+  metaRow.appendChild(el("span", "tag no", "第 " + q.i + " 题 · qid " + q.qid));
+  if (opts.srcTitle) metaRow.appendChild(el("span", "tag no", esc(opts.srcTitle)));
+  const fav = el("button", "fav-btn" + (opts.fav ? " on" : ""), opts.fav ? "★" : "☆");
+  fav.title = "收藏本题";
+  fav.onclick = () => opts.onFav && opts.onFav(fav);
+  metaRow.appendChild(fav);
+  card.appendChild(metaRow);
+
+  const mh = matHtml(exam, q.m);
+  if (mh) {
+    const mat = el("div", "material");
+    const head = el("div", "m-head", `<span>📄 材料材料 ${q.m}（点击折叠/展开）</span>`);
+    head.querySelector("span").textContent = `📄 材料 ${q.m}（点击折叠/展开）`;
+    const body = el("div", "m-body");
+    body.innerHTML = mh;
+    head.onclick = () => mat.classList.toggle("folded");
+    mat.append(head, body);
+    card.appendChild(mat);
+  }
+
+  const stem = el("div", "q-stem");
+  if (isHtml(q.s)) { stem.classList.add("html"); stem.innerHTML = q.s; }
+  else stem.textContent = q.s;
+  card.appendChild(stem);
+
+  const optsBox = el("div", "opts");
+  const keys = Object.keys(q.o).sort();
+  const ansKeys = (q.a || "").toUpperCase().split("").filter(c => /[A-Z]/.test(c));
+  for (const k of keys) {
+    const o = el("div", "opt");
+    o.appendChild(el("span", "k", k));
+    const txt = el("span");
+    if (isHtml(q.o[k])) { txt.classList.add("html"); txt.innerHTML = q.o[k]; }
+    else txt.textContent = q.o[k];
+    o.appendChild(txt);
+    if (opts.selected.has(k)) o.classList.add("sel");
+    if (opts.judged || opts.showAnswer) {
+      o.classList.add("disabled");
+      if (ansKeys.includes(k)) o.classList.add("right");
+      else if (opts.selected.has(k)) o.classList.add("wrong");
+    }
+    o.onclick = () => {
+      if (opts.judged || opts.showAnswer) return;
+      opts.onToggle(k, o);
+    };
+    optsBox.appendChild(o);
+  }
+  card.appendChild(optsBox);
+
+  if (opts.judged || opts.showAnswer) {
+    const box = el("div", "answer-box");
+    const correct = q.a && norm([...opts.selected].join("")) === norm(q.a);
+    if (q.a) {
+      const line = el("div", "ans-line");
+      const selStr = [...opts.selected].sort().join("") || "未作答";
+      if (correct) line.innerHTML = `✅ 回答正确，答案：<b class="good">${q.a}</b>`;
+      else line.innerHTML = `❌ 回答错误。你的答案：<b class="you">${selStr}</b>，正确答案：<b class="good">${q.a}</b>`;
+      box.appendChild(line);
+    } else {
+      box.appendChild(el("div", "ans-line", "⚠️ 该题答案缺失，可参考下方解析。"));
+    }
+    if (q.e) {
+      const ex = el("div", "expl");
+      ex.appendChild(el("span", "ex-title", "📖 官方解析"));
+      const bodyEl = el("div");
+      if (isHtml(q.e)) { ex.classList.add("html"); bodyEl.innerHTML = q.e; }
+      else bodyEl.textContent = q.e;
+      ex.appendChild(bodyEl);
+      box.appendChild(ex);
+    }
+    card.appendChild(box);
+  }
+  container.appendChild(card);
+  return card;
+}
+
+/* ================= 练习模式（单套卷 / 随机） ================= */
+async function startPractice(catId, examId) {
+  const ref = `${catId}/${examId}`;
+  const exam = await loadExam(ref);
+  const prog = PROG();
+  const saved = prog[ref];
+  session = {
+    mode: "practice", catId, examId, ref, exam,
+    title: exam.t, refs: exam.qs.map((_, i) => i), idx: 0,
+    ans: {}, judged: {}, limit: 0,
+  };
+  if (saved && saved.i > 0 && saved.i < exam.qs.length) {
+    session.idx = saved.i;
+    toast(`已回到上次进度：第 ${saved.i + 1} 题`);
+  }
+  location.hash = "#/s";
+}
+async function startRandom(catId) {
+  toast("正在随机抽题…");
+  const refs = await pickRandomRefs(catId === "all" ? null : catId, 20, true);
+  if (!refs.length) { toast("抽题失败"); return; }
+  session = { mode: "random", catId, title: `随机练习 · ${catId === "all" ? "全部题库" : catName(catId)}`, refs, idx: 0, ans: {}, judged: {}, limit: 0 };
+  location.hash = "#/s";
+}
+
+/* 从分类（或全部）随机抽 n 题，返回 qref 列表 */
+async function pickRandomRefs(catId, n, lazyOrder) {
+  const cats = catId ? [meta.cats.find(c => c.id === catId)] : meta.cats;
+  const allRefs = [];
+  for (const c of cats) {
+    const idx = await loadCatIndex(c.id);
+    for (const x of shuffle(idx).slice(0, Math.max(3, Math.ceil(n / 6)))) {
+      allRefs.push({ c: c.id, e: x.id.split("/")[1], n: x.n });
+    }
+  }
+  const picked = [];
+  for (const r of shuffle(allRefs)) {
+    const ex = await loadExam(`${r.c}/${r.e}`);
+    const qs = shuffle(ex.qs.map((_, i) => i)).slice(0, Math.ceil(n / allRefs.length) + 1);
+    for (const qi of qs) picked.push({ c: r.c, e: r.e, q: qi });
+    if (picked.length >= n) break;
+  }
+  return shuffle(picked).slice(0, n);
+}
+
+/* ================= 会话渲染 ================= */
+async function renderSession() {
+  const s = session;
+  if (!s) return viewHome();
+  const wrap = el("div");
+
+  // 头部
+  const head = el("div", "p-header");
+  const back = el("button", "btn", "← 退出");
+  back.onclick = () => {
+    if (s.mode === "mock" && !s.done) { if (!confirm("考试尚未交卷，确定退出？")) return; stopTimer(); }
+    if (s._save) s._save();
+    location.hash = s.mode === "practice" ? `#/cat/${s.catId}` : s.mode === "wrong" || s.mode === "fav" ? `#/${s.mode}` : "#/";
+  };
+  const src = el("span", "src", esc(s.title));
+  const timer = el("span", "timer", s.mode === "mock" && !s.done ? fmtTime(s.remain ?? s.limit) : fmtTime((Date.now() - (s.startTs || Date.now())) / 1000));
+  timer.id = "timer";
+  const cardBtn = el("button", "btn", "☰ 答题卡");
+  cardBtn.onclick = openCard;
+  head.append(back, src, timer, cardBtn);
+  wrap.appendChild(head);
+
+  const bar = el("div", "progress-bar");
+  const barFill = el("i");
+  bar.appendChild(barFill);
+  wrap.appendChild(bar);
+
+  const body = el("div");
+  wrap.appendChild(body);
+
+  const btns = el("div", "p-btns");
+  const prev = el("button", "btn", "← 上一题");
+  const submit = el("button", "btn primary", s.mode === "mock" ? "确认作答" : "提交答案");
+  const seeAns = el("button", "btn", "查看答案");
+  const next = el("button", "btn", "下一题 →");
+  const finish = el("button", "btn danger", s.mode === "mock" ? "交卷" : "结束练习");
+  btns.append(prev, submit, seeAns, next, finish);
+  wrap.appendChild(btns);
+  setBody(wrap);
+
+  if (s.mode === "mock" && !s.done) { if (!s._started) { s._started = true; startTimer(true); } }
+  else if (!s.startTs) { s._started = true; startTimer(false); }
+  else if (!tick) startTimer(s.mode === "mock" && !s.done);
+
+  async function show() {
+    const s = session;
+    const i = s.idx;
+    barFill.style.width = ((i + 1) / s.refs.length * 100) + "%";
+    body.innerHTML = "";
+    prev.disabled = i === 0;
+    next.disabled = i === s.refs.length - 1;
+    submit.disabled = false;
+    seeAns.disabled = false;
+
+    let q, exam, key, favKey;
+    if (s.mode === "wrong" || s.mode === "fav") {
+      const snap = s.refs[i];
+      q = snap.q; exam = { ms: snap.ms ? snap.ms.map((h, j) => ({ i: j + 1, h })) : [] };
+      key = snap.key; favKey = snap.key;
+    } else {
+      let ref, qi;
+      if (s.mode === "practice") { ref = s.ref; qi = i; }
+      else { const r = s.refs[i]; ref = `${r.c}/${r.e}`; qi = r.q; }
+      exam = await loadExam(ref);
+      q = exam.qs[qi];
+      key = i; favKey = q.qid || `${ref}#${qi}`;
+    }
+    s.curKey = key; s.curFavKey = favKey; s.curQ = q; s.curExam = exam;
+
+    const selected = new Set(s.ans[key] || []);
+    const judged = !!s.judged[key];
+    const fav = !!FAV()[favKey];
+    renderQuestion(body, q, exam, {
+      selected, judged, fav,
+      srcTitle: s.mode === "random" || s.mode === "mock" ? exam.t : null,
+      showAnswer: s.done === true,
+      onToggle(k) {
+        const set = s.ans[key] || (s.ans[key] = new Set());
+        // 多选题可多选；单选替换
+        const multi = (q.a || "").length > 1;
+        if (multi) { set.has(k) ? set.delete(k) : set.add(k); }
+        else { set.clear(); set.add(k); }
+        if (!multi && !s.judged[key]) { /* 单选自动判分更顺手? 保留手动提交 */ }
+        s.ans[key] = set;
+        renderSession();
+      },
+      onFav(btn) {
+        const f = FAV();
+        if (f[favKey]) { delete f[favKey]; toast("已取消收藏"); }
+        else { f[favKey] = makeSnapshot(exam, q); toast("已收藏 ⭐"); }
+        LS.set("xq_fav", f);
+        btn.classList.toggle("on", !!f[favKey]);
+        btn.textContent = f[favKey] ? "★" : "☆";
+        renderTabs();
+      },
+    });
+
+    // 按钮状态
+    const answered = (s.ans[key] || new Set()).size > 0;
+    const mockLive = s.mode === "mock" && !s.done;
+    submit.disabled = mockLive ? false : (judged || s.done || !answered);
+    seeAns.disabled = s.mode === "mock" ? true : (judged || s.done);
+    if (s.done) { submit.disabled = true; seeAns.disabled = true; finish.textContent = "返回成绩"; }
+  }
+
+  prev.onclick = () => { saveProgress(); session.idx--; renderSession(); };
+  next.onclick = () => { saveProgress(); session.idx++; renderSession(); };
+  submit.onclick = () => {
+    const s = session, key = s.curKey, q = s.curQ;
+    // 模拟考试模式：确认作答后直接跳下一题，不判分
+    if (s.mode === "mock" && !s.done) {
+      if (s.idx < s.refs.length - 1) { s.idx++; renderSession(); }
+      else finish.onclick();
+      return;
+    }
+    s.judged[key] = true;
+    const sel = [...(s.ans[key] || [])].map(c => c).sort().join("");
+    const correct = q.a && norm(sel) === norm(q.a);
+    // 错题本
+    if (!correct && s.mode !== "wrong") {
+      const w = WRONG();
+      const fk = s.curFavKey;
+      if (!w[fk]) { w[fk] = makeSnapshot(s.curExam, q, s.title); LS.set("xq_wrong", w); renderTabs(); }
+    }
+    // 错题模式答对自动移出
+    if (correct && s.mode === "wrong") {
+      const w = WRONG();
+      delete w[s.curFavKey];
+      LS.set("xq_wrong", w); renderTabs();
+      toast("答对了，已移出错题本 🎉");
+    }
+    renderSession();
+  };
+  seeAns.onclick = () => { session.judged[session.curKey] = true; renderSession(); };
+  finish.onclick = () => {
+    const s = session;
+    if (s.mode === "mock" && !s.done) {
+      const un = s.refs.length - Object.keys(s.ans).filter(k => s.ans[k] && s.ans[k].size).length;
+      if (!confirm(`还有 ${un} 题未作答，确定交卷？`)) return;
+      return submitMock();
+    }
+    saveProgress();
+    if (s.mode === "practice") location.hash = `#/cat/${s.catId}`;
+    else if (s.mode === "mock") location.hash = "#/score";
+    else location.hash = "#/";
+  };
+
+  function saveProgress() {
+    const s = session;
+    if (s.mode !== "practice") return;
+    const p = PROG();
+    p[s.ref] = { i: s.idx, t: Date.now(), t2: s.title };
+    LS.set("xq_progress", p);
+  }
+  session._save = saveProgress;
+  await show();
+}
+
+/* 快照：存入错题本/收藏 */
+function makeSnapshot(exam, q, srcTitle) {
+  const snap = { q: JSON.parse(JSON.stringify(q)), key: q.qid || (exam.id + "#" + q.i), src: srcTitle || exam.t || "", ts: Date.now() };
+  const mh = matHtml(exam, q.m);
+  if (mh) { snap.ms = [mh]; snap.q.m = 1; }
+  return snap;
+}
+
+/* ================= 错题 / 收藏 ================= */
+function startWrongFav(mode) {
+  const data = mode === "wrong" ? WRONG() : FAV();
+  const snaps = Object.values(data).sort((a, b) => b.ts - a.ts);
+  if (!snaps.length) {
+    const wrap = el("div");
+    wrap.appendChild(el("div", "empty", `<div class="big">${mode === "wrong" ? "🎉" : "⭐"}</div><p>${mode === "wrong" ? "暂无错题，答错的题会自动收进错题本" : "暂无收藏，答题页点击 ☆ 收藏题目"}</p>`));
+    const b = el("div", "", '<div style="text-align:center"><button class="btn primary">返回全部题库</button></div>');
+    b.querySelector("button").onclick = () => location.hash = "#/";
+    wrap.appendChild(b);
+    setBody(wrap);
+    return;
+  }
+  session = {
+    mode, title: mode === "wrong" ? `错题集 · ${snaps.length} 题` : `收藏题集 · ${snaps.length} 题`,
+    refs: snaps, idx: 0, ans: {}, judged: {}, limit: 0,
+  };
+  location.hash = "#/s";
+  renderSession();
+}
+
+/* ================= 模拟考试 ================= */
+function openMockModal() {
+  const sel = $("#mockScope");
+  sel.innerHTML = `<option value="all">全部题库</option>` + meta.cats.map(c => `<option value="${c.id}">${catIcon(c.id)} ${c.name}</option>`).join("");
+  $("#mockModal").classList.add("show");
+}
+$("#mockCancel").onclick = () => $("#mockModal").classList.remove("show");
+$("#mockStart").onclick = async () => {
+  $("#mockModal").classList.remove("show");
+  const scope = $("#mockScope").value;
+  const count = +$("#mockCount").value;
+  const mins = +$("#mockTime").value;
+  toast("正在组卷，随机抽题…");
+  const refs = await pickRandomRefs(scope === "all" ? null : scope, count, true);
+  if (refs.length < count * 0.6) { toast("抽题不足，请重试"); return; }
+  session = {
+    mode: "mock", catId: scope, title: `模拟考试 · ${scope === "all" ? "全部题库" : catName(scope)} · ${refs.length} 题`,
+    refs, idx: 0, ans: {}, judged: {}, limit: mins * 60, remain: mins * 60, done: false,
+  };
+  location.hash = "#/s";
+  renderSession();
+};
+function submitMock() {
+  const s = session;
+  if (!s || s.mode !== "mock") return;
+  stopTimer();
+  s.done = true;
+  s.usedTime = Math.min(s.limit, (Date.now() - (s.startTs || Date.now())) / 1000);
+  location.hash = "#/score";
+  renderScore();
+}
+
+/* ================= 成绩 ================= */
+function renderScore() {
+  const s = session;
+  if (!s) return viewHome();
+  let right = 0, wrong = 0, blank = 0;
+  s.refs.forEach((r, i) => {
+    const key = i;
+    const sel = [...(s.ans[key] || [])].sort().join("");
+    let q;
+    if (s.mode === "mock") {
+      const ex = examCache[`${r.c}/${r.e}`];
+      q = ex && ex.qs[r.q];
+    } else q = s.refs[i] && s.refs[i].q;
+    if (!q) return;
+    if (!sel) blank++;
+    else if (q.a && norm(sel) === norm(q.a)) right++;
+    else wrong++;
+  });
+  const total = s.refs.length;
+  const score = right;
+  const wrap = el("div");
+  wrap.appendChild(el("div", "score-card", `
+    <div class="trophy">${score / total >= 0.8 ? "🏆" : score / total >= 0.6 ? "🎯" : "💪"}</div>
+    <div class="num">${score}<small> / ${total} 分</small></div>
+    <div class="score-sub">
+      <span>用时 <b>${fmtTime(s.usedTime || 0)}</b></span>
+      <span>答对 <b class="ok">${right}</b></span>
+      <span>答错 <b class="bad">${wrong}</b></span>
+      <span>未答 ${blank}</span>
+      <span>正确率 <b>${Math.round(right / total * 100)}%</b></span>
+    </div>`));
+  const btns = el("div", "p-btns");
+  const review = el("button", "btn primary", "📖 回顾整卷");
+  review.onclick = () => { session.idx = 0; location.hash = "#/s"; renderSession(); };
+  const addWrong = el("button", "btn", "❌ 一键加入错题集");
+  addWrong.onclick = () => {
+    const w = WRONG();
+    let n = 0;
+    s.refs.forEach((r, i) => {
+      const sel = [...(s.ans[i] || [])].sort().join("");
+      let q, ex;
+      if (s.mode === "mock") { ex = examCache[`${r.c}/${r.e}`]; q = ex && ex.qs[r.q]; }
+      else { q = s.refs[i].q; ex = s.refs[i]; }
+      if (!q || !ex) return;
+      const okAns = q.a && norm(sel) === norm(q.a);
+      const fk = q.qid || `${r.c}/${r.e}#${r.q}`;
+      if (!okAns && !w[fk]) { w[fk] = makeSnapshot(ex, q, s.title); n++; }
+    });
+    LS.set("xq_wrong", w);
+    renderTabs();
+    toast(`已把 ${n} 道错题加入错题本`);
+  };
+  const exit = el("button", "btn", "退出考试");
+  exit.onclick = () => { session = null; location.hash = "#/"; renderTabs(); };
+  btns.append(review, addWrong, exit);
+  wrap.appendChild(btns);
+  setBody(wrap);
+}
+
+/* ================= 答题卡 ================= */
+function openCard() {
+  const s = session;
+  if (!s) return;
+  const grid = $("#cardGrid");
+  grid.innerHTML = "";
+  const states = [];
+  for (let i = 0; i < s.refs.length; i++) {
+    const sel = (s.ans[i] || new Set()).size > 0;
+    const judged = s.judged[i] || s.done;
+    let cls = "";
+    if (judged && sel) {
+      let q;
+      if (s.mode === "wrong" || s.mode === "fav") q = s.refs[i].q;
+      else if (s.mode === "practice") q = s.exam.qs[i];
+      else { const r = s.refs[i]; const ex = examCache[`${r.c}/${r.e}`]; q = ex && ex.qs[r.q]; }
+      const ok = q && q.a && norm([...(s.ans[i] || [])].join("")) === norm(q.a);
+      cls = ok ? "right" : "wrong";
+    } else if (sel) cls = "ans";
+    if (i === s.idx) cls += " cur";
+    states.push({ i, cls });
+  }
+  for (const { i, cls } of states) {
+    const c = el("button", "cell " + cls, String(i + 1));
+    c.onclick = () => {
+      $("#cardDrawer").classList.remove("show");
+      $("#cardMask").classList.remove("show");
+      session.idx = i;
+      renderSession();
+    };
+    grid.appendChild(c);
+  }
+  $("#cardDrawer").classList.add("show");
+  $("#cardMask").classList.add("show");
+}
+$("#cardClose").onclick = () => { $("#cardDrawer").classList.remove("show"); $("#cardMask").classList.remove("show"); };
+$("#cardMask").onclick = () => { $("#cardDrawer").classList.remove("show"); $("#cardMask").classList.remove("show"); };
+$("#brand").onclick = () => location.hash = "#/";
+
+/* ================= 启动 ================= */
+route();
