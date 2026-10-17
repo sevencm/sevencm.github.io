@@ -53,16 +53,25 @@ git push origin main
 
 | 脚本 | 作用 |
 |---|---|
+| `tools/config.py` | 公共配置：路径统一从命令行参数 / 环境变量 / `.env` 读取，脚本内不写死任何本机路径 |
 | `tools/build_data.py` | 全量解析 md → `data/<模块>/index.json` + 每套卷一个 JSON，并抽取引用图片到 `img/` |
-| `tools/fix_ms.py` | 修复/重建「材料」字段（资料分析等材料的共享题干） |
+| `tools/fix_ms.py` | （可选）只重建已有数据的「材料」字段，不重跑全量解析 |
+| `tools/fix_judge.py` | 补全源库中选项为占位符的判断题（A 正确 / B 错误） |
 | `tools/strip_marks.py` | 清除选项中残留的 ✅ 答案标记 |
 
-重新生成：
+路径配置：复制 `.env.example` 为 `.env`（已被 `.gitignore` 忽略），填入题库源目录即可；也可用环境变量或命令行参数，优先级为 **命令行 > 环境变量 > `.env` > 默认值**。
 
 ```bash
-python3 tools/build_data.py   # 约 20 分钟（含图片复制）
-python3 tools/fix_ms.py
-python3 tools/strip_marks.py
+cp .env.example .env      # 编辑 XINGCE_SRC=「xingcezhenti 仓库的本地路径」
+python3 tools/build_data.py --clean   # 全量重建（约 20 分钟，含图片复制）
+python3 tools/fix_judge.py            # 补全判断题选项
+python3 tools/strip_marks.py          # 清理答案标记
+```
+
+也可完全不用 `.env`，直接：
+
+```bash
+python3 tools/build_data.py --src /path/to/xingcezhenti --out .
 ```
 
 ## 目录结构

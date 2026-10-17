@@ -1,2 +1,11 @@
 .DS_Store
 Thumbs.db
+
+# 本地配置：含本机路径等信息，绝不提交
+.env
+.env.local
+
+# Python 缓存 / 虚拟环境
+__pycache__/
+*.py[cod]
+.venv/
