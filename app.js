@@ -169,34 +169,62 @@ async function route() {
 }
 
 /* ================= 顶栏 ================= */
+function navEntries() {
+  const wc = Object.keys(WRONG()).length, fc = Object.keys(FAV()).length;
+  return [
+    { key: "", label: "📚 全部题库", hash: "#/", group: "题库分类" },
+    ...meta.cats.map(c => ({ key: "cat/" + c.id, label: catIcon(c.id) + " " + c.name, hash: "#/cat/" + c.id, group: "题库分类" })),
+    { key: "wrong", label: "❌ 错题集", badge: wc, hash: "#/wrong", group: "我的" },
+    { key: "fav", label: "⭐ 收藏", badge: fc, hash: "#/fav", group: "我的" },
+    { key: "mock", label: "⏱️ 模拟考试", action: "mock", group: "我的" },
+  ];
+}
+function closeNav() {
+  const p = $(".nav-panel"), b = $(".nav-cur");
+  if (p) p.classList.remove("show");
+  if (b) b.classList.remove("open");
+}
+/* 收起式导航：顶栏只留「当前位置」按钮，点开是分类面板，省掉三行胶囊 */
 function renderTabs() {
   const tabs = $("#tabs");
   const cur = location.hash.slice(2);
-  const wc = Object.keys(WRONG()).length, fc = Object.keys(FAV()).length;
-  const items = [
-    ["", "📚 全部题库", ""],
-    ...meta.cats.map(c => [null, catIcon(c.id) + " " + c.name, "cat/" + c.id]),
-    ["wrong", `❌ 错题集 ${wc}`, "wrong"],
-    ["fav", `⭐ 收藏 ${fc}`, "fav"],
-    ["mock", "⏱️ 模拟考试", "#mock"],
-  ];
+  const entries = navEntries();
+  const active = entries.find(e => e.key !== "mock" && (e.key === "" ? cur === "" : cur.startsWith(e.key))) || entries[0];
+
   tabs.innerHTML = "";
-  for (const [key, label, href] of items) {
-    if (key === null) {
-      const t = el("button", "tab", label);
-      t.onclick = () => location.hash = "#/" + href;
-      tabs.appendChild(t);
-      continue;
-    }
-    const t = el("button", "tab", label);
-    if (key === "mock") { t.onclick = openMockModal; }
-    else {
-      const active = (key === "" && cur === "") || (key !== "" && cur.startsWith(key));
-      if (active) t.classList.add("on");
-      t.onclick = () => location.hash = "#/" + (key || "");
-    }
-    tabs.appendChild(t);
+  const wrap = el("div", "nav-wrap");
+  const curBtn = el("button", "nav-cur");
+  curBtn.innerHTML = `<span>${active.label}</span><i>▾</i>`;
+  curBtn.onclick = e => {
+    e.stopPropagation();
+    const panel = $(".nav-panel");
+    const open = !panel.classList.contains("show");
+    panel.classList.toggle("show", open);
+    curBtn.classList.toggle("open", open);
+  };
+
+  const panel = el("div", "nav-panel");
+  const groups = ["题库分类", "我的"];
+  for (const g of groups) {
+    panel.appendChild(el("div", "nav-sec", g));
+    const grid = el("div", "nav-grid");
+    entries.filter(e => e.group === g).forEach(e => {
+      const on = e === active;
+      const b = el("button", "nav-item" + (on ? " on" : ""),
+        `<span>${e.label}</span>` + (e.badge != null ? `<span class="n">${e.badge}</span>` : ""));
+      b.onclick = ev => {
+        ev.stopPropagation();
+        closeNav();
+        if (e.action === "mock") { openMockModal(); return; }
+        if (location.hash === e.hash) route(); // 已在该页：重新渲染一遍
+        else location.hash = e.hash;
+      };
+      grid.appendChild(b);
+    });
+    panel.appendChild(grid);
   }
+  wrap.append(curBtn, panel);
+  tabs.appendChild(wrap);
 }
 function catIcon(id) { return ({ "01": "🚩", "02": "🧠", "03": "📖", "04": "🔢", "05": "🧩", "06": "📊" })[id] || "📘"; }
 function catName(id) { const c = meta.cats.find(x => x.id === id); return c ? c.name : id; }
@@ -204,18 +232,21 @@ function catName(id) { const c = meta.cats.find(x => x.id === id); return c ? c.
 /* ================= 首页 ================= */
 function viewHome() {
   const wrap = el("div");
-  wrap.appendChild(el("div", "hero", `<h1>行测真题 · 刷题练习</h1><p>2016–2026 年国考 / 省考 / 联考 / 选调真题，共 ${meta.cats.reduce((s, c) => s + c.qs, 0)} 题</p>`));
+  const totalQs = meta.cats.reduce((s, c) => s + c.qs, 0);
+  const totalExams = meta.cats.reduce((s, c) => s + c.exams, 0);
+  const wrongN = Object.keys(WRONG()).length;
+  wrap.appendChild(el("div", "hero", `<h1>行测真题 · 刷题练习</h1><p>2016–2026 年国考 / 省考 / 联考 / 选调真题</p>`));
 
-  const stat = el("div", "stat-row",
-    meta.cats.map(c => `<div class="stat"><b>${(c.qs / 10000).toFixed(1).replace(/\.0$/, "")} 万</b><span>${c.name}</span></div>`).join("")
-    + `<div class="stat"><b>${Object.keys(WRONG()).length}</b><span>错题待攻克</span></div>`);
-  wrap.appendChild(stat);
+  // 一行统计，取代原来 7 张卡片（省掉约 4 行高度）
+  wrap.appendChild(el("div", "home-meta",
+    `<span><b>${totalQs.toLocaleString()}</b> 题</span><i>/</i><span><b>${totalExams}</b> 套卷</span><i>/</i><span><b>${meta.cats.length}</b> 大模块</span>`
+    + (wrongN ? `<i>/</i><span class="bad">错题 <b>${wrongN}</b></span>` : "")));
 
   // 继续练习
   const prog = PROG();
   const conts = Object.entries(prog).filter(([k, v]) => v.i >= 0).sort((a, b) => b[1].t - a[1].t).slice(0, 3);
   if (conts.length) {
-    const sec = el("div");
+    const sec = el("div", "home-sec");
     sec.appendChild(el("div", "sec-title", "<h2>🚀 继续练习</h2>"));
     const list = el("div", "exam-list");
     conts.forEach(([ref, v]) => {
@@ -831,6 +862,13 @@ $("#cfYes").onclick = () => settleConfirm(true);
 $("#cfNo").onclick = () => settleConfirm(false);
 $("#cfModal").onclick = e => { if (e.target.id === "cfModal") settleConfirm(false); };
 document.addEventListener("keydown", e => { if (e.key === "Escape" && cfResolve) settleConfirm(false); });
+
+/* 顶部收起式导航：点空白处或按 Esc 收起 */
+document.addEventListener("click", e => {
+  const w = document.querySelector(".nav-wrap");
+  if (w && !w.contains(e.target)) closeNav();
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeNav(); });
 
 /* ================= 启动 ================= */
 route();
