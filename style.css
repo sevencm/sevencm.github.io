@@ -96,6 +96,24 @@ button { font-family: inherit; cursor: pointer; }
 .home-meta .bad, .home-meta .bad b { color: var(--bad); }
 .home-sec { margin-bottom: 22px; }
 
+/* 错题 / 收藏 快捷入口 */
+.quick-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+.quick-card {
+  display: flex; align-items: center; gap: 10px; min-width: 0;
+  background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+  padding: 11px 14px; border: 1px solid transparent; cursor: pointer;
+  transition: transform .15s, border-color .15s, box-shadow .15s;
+}
+.quick-card:hover { border-color: var(--pri); transform: translateY(-1px); box-shadow: 0 5px 14px rgba(16,24,40,.09); }
+.quick-card .ic { font-size: 19px; line-height: 1; }
+.quick-card .tt { display: flex; flex-direction: column; min-width: 0; line-height: 1.35; }
+.quick-card .tt b { font-size: 14px; }
+.quick-card .tt span { font-size: 11.5px; color: var(--sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.quick-card .num { margin-left: auto; font-size: 20px; font-weight: 700; color: var(--pri); font-variant-numeric: tabular-nums; }
+.quick-card.wrong .num { color: var(--bad); }
+.quick-card.fav .num { color: var(--star); }
+.quick-card.zero .num { font-size: 16px; color: var(--sub); font-weight: 600; }
+
 .cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
 .cat-card {
   background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);

@@ -235,12 +235,25 @@ function viewHome() {
   const totalQs = meta.cats.reduce((s, c) => s + c.qs, 0);
   const totalExams = meta.cats.reduce((s, c) => s + c.exams, 0);
   const wrongN = Object.keys(WRONG()).length;
+  const favN = Object.keys(FAV()).length;
   wrap.appendChild(el("div", "hero", `<h1>行测真题 · 刷题练习</h1><p>2016–2026 年国考 / 省考 / 联考 / 选调真题</p>`));
 
   // 一行统计，取代原来 7 张卡片（省掉约 4 行高度）
   wrap.appendChild(el("div", "home-meta",
-    `<span><b>${totalQs.toLocaleString()}</b> 题</span><i>/</i><span><b>${totalExams}</b> 套卷</span><i>/</i><span><b>${meta.cats.length}</b> 大模块</span>`
-    + (wrongN ? `<i>/</i><span class="bad">错题 <b>${wrongN}</b></span>` : "")));
+    `<span><b>${totalQs.toLocaleString()}</b> 题</span><i>/</i><span><b>${totalExams}</b> 套卷</span><i>/</i><span><b>${meta.cats.length}</b> 大模块</span>`));
+
+  // 错题集 / 收藏：带数量，点一下直接进入练习
+  const quick = el("div", "quick-row");
+  [
+    { cls: "wrong", ic: "❌", name: "错题集", n: wrongN, sub: wrongN ? "点此重刷错题" : "暂无错题", hash: "#/wrong" },
+    { cls: "fav", ic: "⭐", name: "收藏", n: favN, sub: favN ? "点此刷收藏题" : "暂无收藏", hash: "#/fav" },
+  ].forEach(q => {
+    const c = el("div", `quick-card ${q.cls}` + (q.n ? "" : " zero"),
+      `<span class="ic">${q.ic}</span><span class="tt"><b>${q.name}</b><span>${q.sub}</span></span><span class="num">${q.n}</span>`);
+    c.onclick = () => location.hash = q.hash;
+    quick.appendChild(c);
+  });
+  wrap.appendChild(quick);
 
   // 继续练习
   const prog = PROG();
@@ -478,7 +491,14 @@ async function renderSession() {
       stopTimer();
     }
     if (s._save) s._save();
-    location.hash = s.mode === "practice" ? `#/cat/${s.catId}` : s.mode === "wrong" || s.mode === "fav" ? `#/${s.mode}` : "#/";
+    // 错题/收藏没有独立列表页，退出直接回首页（原来跳 #/wrong 会立刻重新进入同一轮练习，看起来像"退不出"）
+    if (s.mode === "wrong" || s.mode === "fav") {
+      session = null;
+      location.hash = "#/";
+      renderTabs();
+      return;
+    }
+    location.hash = s.mode === "practice" ? `#/cat/${s.catId}` : "#/";
     if (isMockLive) { session = null; renderTabs(); }
   };
   const src = el("span", "src", esc(s.title));
