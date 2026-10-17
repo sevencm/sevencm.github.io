@@ -269,5 +269,6 @@ select.sel {
   .q-card { padding: 14px; }
   .brand-text { font-size: 15px; }
   .cat-grid { grid-template-columns: 1fr 1fr; }
-  .p-btns .btn { flex: 1; padding: 10px 8px; }
+  .p-btns { gap: 6px; }
+  .p-btns .btn { flex: 1; padding: 10px 4px; font-size: 13px; white-space: nowrap; }
 }
