@@ -157,6 +157,13 @@ select.sel {
 .q-stem.html, .opt.html { white-space: normal; }
 .q-stem.html { white-space: normal; }
 
+/* 逻辑填空 / 语句填空里表示「横线」的空位 */
+.blank {
+  display: inline-block; height: .9em; vertical-align: -.12em;
+  border-bottom: 1.6px solid currentColor; opacity: .65;
+  margin: 0 .28em; max-width: 4em;
+}
+
 .opts { display: flex; flex-direction: column; gap: 9px; }
 .opt {
   display: flex; align-items: flex-start; gap: 10px;

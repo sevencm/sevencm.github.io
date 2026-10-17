@@ -70,6 +70,35 @@ function settleConfirm(v) {
   const r = cfResolve; cfResolve = null;
   if (r) r(v);
 }
+/* 把源库里用连续空格（NBSP/全角空格）表示的「横线」渲染成可见下划线空位 */
+function blankifyDom(root) {
+  if (!root) return;
+  const RX = /[\u00a0\u3000 ]{2,}/g;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+  const nodes = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode);
+  for (const node of nodes) {
+    const t = node.nodeValue;
+    if (!t || t.indexOf("  ") < 0 && !/[\u00a0\u3000]{2,}/.test(t)) continue;
+    RX.lastIndex = 0;
+    let m = RX.exec(t);
+    if (!m) continue;
+    const frag = document.createDocumentFragment();
+    let last = 0;
+    while (m) {
+      if (m.index > last) frag.appendChild(document.createTextNode(t.slice(last, m.index)));
+      const sp = document.createElement("span");
+      sp.className = "blank";
+      sp.style.width = Math.min(3.6, Math.max(2, m[0].length * 0.3)) + "em";
+      frag.appendChild(sp);
+      last = m.index + m[0].length;
+      m = RX.exec(t);
+    }
+    if (last < t.length) frag.appendChild(document.createTextNode(t.slice(last)));
+    node.parentNode.replaceChild(frag, node);
+  }
+}
+
 const norm = s => (s || "").toUpperCase().split("").sort().join("");
 function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 function isHtmlContent(s) { return isHtml(s); }
@@ -278,6 +307,7 @@ function renderQuestion(container, q, exam, opts) {
     head.querySelector("span").textContent = `📄 材料 ${q.m}（点击折叠/展开）`;
     const body = el("div", "m-body");
     body.innerHTML = mh;
+    blankifyDom(body);
     head.onclick = () => mat.classList.toggle("folded");
     mat.append(head, body);
     card.appendChild(mat);
@@ -286,6 +316,7 @@ function renderQuestion(container, q, exam, opts) {
   const stem = el("div", "q-stem");
   if (isHtml(q.s)) { stem.classList.add("html"); stem.innerHTML = q.s; }
   else stem.textContent = q.s;
+  blankifyDom(stem);
   card.appendChild(stem);
 
   const optsBox = el("div", "opts");
@@ -330,6 +361,7 @@ function renderQuestion(container, q, exam, opts) {
       const bodyEl = el("div");
       if (isHtml(q.e)) { ex.classList.add("html"); bodyEl.innerHTML = q.e; }
       else bodyEl.textContent = q.e;
+      blankifyDom(bodyEl);
       ex.appendChild(bodyEl);
       box.appendChild(ex);
     }
