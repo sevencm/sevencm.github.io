@@ -70,7 +70,25 @@
   </div>
 </div>
 
+<!-- 加入错题集确认弹窗 -->
+<div class="modal-mask" id="awModal">
+  <div class="modal">
+    <h3>❌ 加入错题集</h3>
+    <p class="aw-sum" id="awSummary"></p>
+    <label class="check-row" id="awBlankRow">
+      <input type="checkbox" id="awIncludeBlank">
+      <span>未作答的题也一起加入（<b id="awBlankN">0</b> 道）</span>
+    </label>
+    <p class="hint">默认只收录<strong>答错</strong>的题；已在错题本中的题会自动跳过，加入后答对会自动移出。</p>
+    <div class="modal-btns">
+      <button class="btn ghost" id="awCancel">取消</button>
+      <button class="btn primary" id="awOk">加入</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
+
 
 <script src="app.js"></script>
 </body>

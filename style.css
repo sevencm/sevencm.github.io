@@ -255,6 +255,14 @@ select.sel {
 .hint { font-size: 12px; color: var(--sub); margin: 6px 0 14px; }
 .modal-btns { display: flex; gap: 10px; justify-content: flex-end; }
 
+/* 加入错题集确认 */
+.aw-sum { font-size: 13.5px; color: var(--txt); background: #f5f7fb; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; line-height: 1.7; }
+.aw-sum b.bad { color: var(--bad); }
+.aw-sum b.mut { color: var(--sub); }
+.check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--txt); margin-bottom: 4px; cursor: pointer; }
+.check-row input { width: 16px; height: 16px; accent-color: var(--pri); }
+.check-row.hide { display: none; }
+
 /* ---------- toast ---------- */
 .toast {
   position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(20px);

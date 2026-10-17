@@ -57,22 +57,44 @@ function isHtmlContent(s) { return isHtml(s); }
 let session = null;   // {mode,title,refs,ans{},judged{},idx,timer,limit,startTs,done,examId,catId}
 let tick = null;
 
-function startTimer(countdown) {
-  clearInterval(tick);
-  if (!session.startTs) session.startTs = Date.now();
-  if (countdown && session.remain == null) session.remain = session.limit;
+/* 剩余秒数：按绝对截止时间算，不受 setInterval 被节流/重渲染影响 */
+function mockRemain() {
+  const s = session;
+  if (!s) return 0;
+  if (!s._deadline) {
+    const base = s.remain != null ? s.remain : s.limit;
+    s._deadline = Date.now() + base * 1000;
+  }
+  return Math.max(0, Math.round((s._deadline - Date.now()) / 1000));
+}
+function paintTimer() {
+  const node = document.getElementById("timer");
+  const s = session;
+  if (!node || !s) return;
+  const mock = s.mode === "mock";
+  const txt = mock
+    ? fmtTime(s.done ? (s.remain ?? s.limit) : mockRemain())
+    : fmtTime((Date.now() - (s.startTs || Date.now())) / 1000);
+  if (node.textContent !== txt) node.textContent = txt;
+  node.classList.toggle("low", mock && !s.done && mockRemain() < 300);
+}
+/* 幂等启动：重复调用只会补一次 interval，不会重置已走的时间 */
+function syncTimer() {
+  const s = session;
+  if (!s) { stopTimer(); return; }
+  if (!s.startTs) s.startTs = Date.now();
+  if (s.mode === "mock" && !s.done) mockRemain();
+  paintTimer();
+  if (tick || s.done) return;
   tick = setInterval(() => {
-    const tEl = $("#timer");
-    if (!tEl) return;
-    if (countdown) {
-      session.remain -= 1;
-      if (session.remain <= 0) { toast("时间到，自动交卷"); submitMock(); return; }
-      tEl.textContent = fmtTime(session.remain);
-      tEl.classList.toggle("low", session.remain < 300);
-    } else {
-      tEl.textContent = fmtTime((Date.now() - session.startTs) / 1000);
+    const cur = session;
+    if (!cur || cur.done) { stopTimer(); return; }
+    if (cur.mode === "mock") {
+      cur.remain = mockRemain();
+      if (cur.remain <= 0) { stopTimer(); toast("时间到，自动交卷"); submitMock(); return; }
     }
-  }, 1000);
+    paintTimer();
+  }, 250);
 }
 function stopTimer() { clearInterval(tick); tick = null; }
 
@@ -358,7 +380,7 @@ async function renderSession() {
     location.hash = s.mode === "practice" ? `#/cat/${s.catId}` : s.mode === "wrong" || s.mode === "fav" ? `#/${s.mode}` : "#/";
   };
   const src = el("span", "src", esc(s.title));
-  const timer = el("span", "timer", s.mode === "mock" && !s.done ? fmtTime(s.remain ?? s.limit) : fmtTime((Date.now() - (s.startTs || Date.now())) / 1000));
+  const timer = el("span", "timer", "00:00");
   timer.id = "timer";
   const cardBtn = el("button", "btn", "☰ 答题卡");
   cardBtn.onclick = openCard;
@@ -386,9 +408,7 @@ async function renderSession() {
   wrap.appendChild(btns);
   setBody(wrap);
 
-  if (s.mode === "mock" && !s.done) { if (!s._started) { s._started = true; startTimer(true); } }
-  else if (!s.startTs) { s._started = true; startTimer(false); }
-  else if (!tick) startTimer(s.mode === "mock" && !s.done);
+  syncTimer();
 
   async function show() {
     const s = session;
@@ -574,34 +594,45 @@ $("#mockStart").onclick = async () => {
   location.hash = "#/s";
   renderSession();
 };
-function submitMock() {
+async function submitMock() {
   const s = session;
-  if (!s || s.mode !== "mock") return;
+  if (!s || s.mode !== "mock" || s.done) return;
   stopTimer();
-  s.done = true;
+  s.remain = mockRemain();
   s.usedTime = Math.min(s.limit, (Date.now() - (s.startTs || Date.now())) / 1000);
+  s.done = true;
+  // 交卷前把整卷试题都加载进缓存，保证判分 / 错题统计覆盖全部题目（含跳题未加载的）
+  const refs = [...new Set(s.refs.map(r => `${r.c}/${r.e}`))];
+  await Promise.all(refs.map(r => loadExam(r).catch(() => null)));
   location.hash = "#/score";
   renderScore();
 }
 
 /* ================= 成绩 ================= */
+/* 整卷逐题统计：ok=答对 / blank=未作答 / 其余为答错 */
+function scoreItems() {
+  const s = session;
+  const items = [];
+  if (!s) return items;
+  s.refs.forEach((r, i) => {
+    const sel = [...(s.ans[i] || [])].sort().join("");
+    let q, ex;
+    if (s.mode === "mock") { ex = examCache[`${r.c}/${r.e}`]; q = ex && ex.qs[r.q]; }
+    else { q = r.q; ex = r; }
+    if (!q || !ex) return;
+    const ok = !!sel && !!q.a && norm(sel) === norm(q.a);
+    items.push({ i, q, ex, sel, ok, blank: !sel, fk: q.qid || `${r.c}/${r.e}#${r.q}` });
+  });
+  return items;
+}
+
 function renderScore() {
   const s = session;
   if (!s) return viewHome();
-  let right = 0, wrong = 0, blank = 0;
-  s.refs.forEach((r, i) => {
-    const key = i;
-    const sel = [...(s.ans[key] || [])].sort().join("");
-    let q;
-    if (s.mode === "mock") {
-      const ex = examCache[`${r.c}/${r.e}`];
-      q = ex && ex.qs[r.q];
-    } else q = s.refs[i] && s.refs[i].q;
-    if (!q) return;
-    if (!sel) blank++;
-    else if (q.a && norm(sel) === norm(q.a)) right++;
-    else wrong++;
-  });
+  const items = scoreItems();
+  const right = items.filter(x => x.ok).length;
+  const wrong = items.filter(x => !x.ok && !x.blank).length;
+  const blank = items.filter(x => x.blank).length;
   const total = s.refs.length;
   const score = right;
   const wrap = el("div");
@@ -618,29 +649,61 @@ function renderScore() {
   const btns = el("div", "p-btns");
   const review = el("button", "btn primary", "📖 回顾整卷");
   review.onclick = () => { session.idx = 0; location.hash = "#/s"; renderSession(); };
-  const addWrong = el("button", "btn", "❌ 一键加入错题集");
-  addWrong.onclick = () => {
-    const w = WRONG();
-    let n = 0;
-    s.refs.forEach((r, i) => {
-      const sel = [...(s.ans[i] || [])].sort().join("");
-      let q, ex;
-      if (s.mode === "mock") { ex = examCache[`${r.c}/${r.e}`]; q = ex && ex.qs[r.q]; }
-      else { q = s.refs[i].q; ex = s.refs[i]; }
-      if (!q || !ex) return;
-      const okAns = q.a && norm(sel) === norm(q.a);
-      const fk = q.qid || `${r.c}/${r.e}#${r.q}`;
-      if (!okAns && !w[fk]) { w[fk] = makeSnapshot(ex, q, s.title); n++; }
-    });
-    LS.set("xq_wrong", w);
-    renderTabs();
-    toast(`已把 ${n} 道错题加入错题本`);
-  };
+  const addWrong = el("button", "btn", "❌ 加入错题集");
+  addWrong.onclick = () => openAddWrong(addWrong);
   const exit = el("button", "btn", "退出考试");
   exit.onclick = () => { session = null; location.hash = "#/"; renderTabs(); };
   btns.append(review, addWrong, exit);
   wrap.appendChild(btns);
   setBody(wrap);
+}
+
+/* 加入错题集：先确认，默认只收答错的题，可选是否连未作答一起收 */
+function openAddWrong(btn) {
+  const s = session;
+  if (!s) return;
+  const items = scoreItems();
+  const w = WRONG();
+  const wrongItems = items.filter(x => !x.ok && !x.blank);
+  const blankItems = items.filter(x => x.blank);
+  if (!wrongItems.length && !blankItems.length) { toast("本卷没有答错的题，无需加入 🎉"); return; }
+
+  const box = $("#awIncludeBlank"), row = $("#awBlankRow");
+  box.checked = false;
+  row.classList.toggle("hide", blankItems.length === 0);
+  $("#awBlankN").textContent = blankItems.length;
+
+  const paint = () => {
+    const incBlank = box.checked && blankItems.length > 0;
+    const picked = incBlank ? wrongItems.concat(blankItems) : wrongItems;
+    const fresh = picked.filter(x => !w[x.fk]).length;
+    const dup = picked.length - fresh;
+    $("#awSummary").innerHTML = `本卷共 <b>${s.refs.length}</b> 题：答错 <b class="bad">${wrongItems.length}</b> 道`
+      + (blankItems.length ? ` · 未作答 <b class="mut">${blankItems.length}</b> 道` : "")
+      + `<br>本次将加入 <b>${fresh}</b> 道` + (dup ? `（${dup} 道已在错题本中，自动跳过）` : "");
+    const ok = $("#awOk");
+    ok.textContent = fresh ? `加入 ${fresh} 道` : "已全部在错题本中";
+    ok.disabled = fresh === 0;
+  };
+  box.onchange = paint;
+  paint();
+
+  $("#awOk").onclick = () => {
+    const list = (box.checked && blankItems.length) ? wrongItems.concat(blankItems) : wrongItems;
+    let n = 0;
+    for (const it of list) {
+      if (w[it.fk]) continue;
+      w[it.fk] = makeSnapshot(it.ex, it.q, s.title);
+      n++;
+    }
+    if (n) LS.set("xq_wrong", w);
+    renderTabs();
+    $("#awModal").classList.remove("show");
+    btn.textContent = "✅ 已加入错题集";
+    toast(n ? `已加入 ${n} 道错题，去错题集练起来吧` : "这些题已在错题本中了");
+  };
+  $("#awCancel").onclick = () => $("#awModal").classList.remove("show");
+  $("#awModal").classList.add("show");
 }
 
 /* ================= 答题卡 ================= */
@@ -681,6 +744,7 @@ function openCard() {
 $("#cardClose").onclick = () => { $("#cardDrawer").classList.remove("show"); $("#cardMask").classList.remove("show"); };
 $("#cardMask").onclick = () => { $("#cardDrawer").classList.remove("show"); $("#cardMask").classList.remove("show"); };
 $("#brand").onclick = () => location.hash = "#/";
+$("#awModal").onclick = e => { if (e.target.id === "awModal") $("#awModal").classList.remove("show"); };
 
 /* ================= 启动 ================= */
 route();
