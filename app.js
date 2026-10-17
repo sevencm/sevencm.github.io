@@ -303,12 +303,22 @@ function renderQuestion(container, q, exam, opts) {
   const mh = matHtml(exam, q.m);
   if (mh) {
     const mat = el("div", "material");
-    const head = el("div", "m-head", `<span>📄 材料材料 ${q.m}（点击折叠/展开）</span>`);
-    head.querySelector("span").textContent = `📄 材料 ${q.m}（点击折叠/展开）`;
+    const head = el("div", "m-head", `<span>📄 材料 ${q.m}</span><em class="m-tip"></em>`);
     const body = el("div", "m-body");
     body.innerHTML = mh;
     blankifyDom(body);
-    head.onclick = () => mat.classList.toggle("folded");
+    // 折叠状态由调用方保存，重绘时还原（避免点选/判分后又被展开）
+    const syncHead = () => {
+      const folded = mat.classList.contains("folded");
+      head.querySelector(".m-tip").textContent = folded ? "已折叠 · 点击展开" : "点击折叠";
+    };
+    if (opts.folded) mat.classList.add("folded");
+    syncHead();
+    head.onclick = () => {
+      const folded = mat.classList.toggle("folded");
+      syncHead();
+      if (opts.onFold) opts.onFold(folded);
+    };
     mat.append(head, body);
     card.appendChild(mat);
   }
@@ -422,6 +432,8 @@ async function pickRandomRefs(catId, n) {
 async function renderSession() {
   const s = session;
   if (!s) return viewHome();
+  // 同一题重绘（点选/判分）时保持滚动位置，避免页面弹回顶部
+  const prevKey = s.curKey, prevIdx = s.idx, prevScroll = window.scrollY;
   const wrap = el("div");
 
   // 头部
@@ -483,26 +495,33 @@ async function renderSession() {
     submit.disabled = false;
     seeAns.disabled = false;
 
-    let q, exam, key, favKey;
+    let q, exam, key, favKey, matKey;
     if (s.mode === "wrong" || s.mode === "fav") {
       const snap = s.refs[i];
       q = snap.q; exam = { ms: snap.ms ? snap.ms.map((h, j) => ({ i: j + 1, h })) : [] };
-      key = snap.key; favKey = snap.key;
+      key = snap.key; favKey = snap.key; matKey = snap.key;
     } else {
       let ref, qi;
       if (s.mode === "practice") { ref = s.ref; qi = i; }
       else { const r = s.refs[i]; ref = `${r.c}/${r.e}`; qi = r.q; }
       exam = await loadExam(ref);
       q = exam.qs[qi];
-      key = i; favKey = q.qid || `${ref}#${qi}`;
+      key = i; favKey = q.qid || `${ref}#${qi}`; matKey = ref;
     }
     s.curKey = key; s.curFavKey = favKey; s.curQ = q; s.curExam = exam;
+
+    // 材料折叠状态按「试卷/快照 + 材料编号」记忆：重绘（点选、提交、判分）不丢失，
+    // 同一材料下的多道资料分析题之间也保持一致
+    if (!s.fold) s.fold = {};
+    const foldKey = `${matKey}#m${q.m}`;
 
     const selected = new Set(s.ans[key] || []);
     const judged = !!s.judged[key];
     const fav = !!FAV()[favKey];
     renderQuestion(body, q, exam, {
       selected, judged, fav,
+      folded: !!s.fold[foldKey],
+      onFold(v) { s.fold[foldKey] = v; },
       srcTitle: s.mode === "random" || s.mode === "mock" ? exam.t : null,
       showAnswer: s.done === true,
       onToggle(k) {
@@ -547,6 +566,9 @@ async function renderSession() {
     submit.disabled = mockLive ? !answered : (judged || s.done || !answered);
     seeAns.disabled = judged || s.done;
     if (s.done) { submit.disabled = true; finish.textContent = "返回成绩"; }
+
+    // 还是同一题（仅是判分/选中状态变化）：恢复原滚动位置
+    if (key === prevKey && i === prevIdx && prevScroll > 0) window.scrollTo(0, prevScroll);
   }
 
   prev.onclick = () => { saveProgress(); session.idx--; renderSession(); };

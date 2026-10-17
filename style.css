@@ -150,6 +150,7 @@ select.sel {
   display: flex; align-items: center; gap: 6px; margin-bottom: 4px; user-select: none;
 }
 .material .m-body { max-height: 420px; overflow-y: auto; }
+.material .m-tip { margin-left: auto; font-style: normal; font-weight: 400; font-size: 11.5px; color: var(--sub); }
 .material.folded .m-body { display: none; }
 .material p { margin: 6px 0; text-align: justify; }
 
