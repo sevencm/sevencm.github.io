@@ -15,22 +15,20 @@
 
 ## 使用
 
-1. 在 GitHub 新建仓库，把本目录推上去：
+线上地址：**https://sevencm.github.io/**（GitHub Pages，用户主页仓库 `sevencm/sevencm.github.io`，main 分支根目录）
 
-   ```bash
-   git init
-   git add -A
-   git commit -m "行测刷题站"
-   git branch -M main
-   git remote add origin git@github.com:<你的用户名>/<仓库名>.git
-   git push -u origin main
-   ```
+本地改动后发布：
 
-2. 仓库 **Settings → Pages → Build and deployment**：
-   - Source 选 **Deploy from a branch**
-   - Branch 选 **main**，目录选 **/ (root)**，保存
+```bash
+git add -A && git commit -m "更新说明"
+git push origin main   # 推送后 1–2 分钟自动构建
+```
 
-3. 等待 1–3 分钟构建，访问 `https://<你的用户名>.github.io/<仓库名>/` 即可刷题。
+如需部署到别的仓库：
+
+1. 把本目录推到目标仓库（`git remote add origin ...` → `git push -u origin main`）
+2. 仓库 **Settings → Pages → Build and deployment**：Source 选 **Deploy from a branch**，Branch 选 **main**、目录 **/ (root)**
+3. 访问 `https://<用户名>.github.io/<仓库名>/`
 
 > 手机浏览器同样可用，进度存在各设备的浏览器里。
 
