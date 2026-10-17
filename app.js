@@ -490,6 +490,8 @@ async function renderSession() {
       if (!ok) return;
       stopTimer();
     }
+    // 练习/随机：退出前先问是否把「已答未判」的题补判进错题本（会话一关，作答就没了）
+    if (!isMockLive && s.mode !== "wrong" && s.mode !== "fav") await flushPending();
     if (s._save) s._save();
     // 错题/收藏没有独立列表页，退出直接回首页（原来跳 #/wrong 会立刻重新进入同一轮练习，看起来像"退不出"）
     if (s.mode === "wrong" || s.mode === "fav") {
@@ -624,33 +626,27 @@ async function renderSession() {
 
   prev.onclick = () => { saveProgress(); session.idx--; renderSession(); };
   next.onclick = () => { saveProgress(); session.idx++; renderSession(); };
-  submit.onclick = () => {
-    const s = session, key = s.curKey, q = s.curQ;
+  submit.onclick = async () => {
+    const s = session;
     // 模拟考试模式：确认作答后直接跳下一题，不判分
     if (s.mode === "mock" && !s.done) {
       if (s.idx < s.refs.length - 1) { s.idx++; renderSession(); }
       else finish.onclick();
       return;
     }
-    s.judged[key] = true;
-    const sel = [...(s.ans[key] || [])].map(c => c).sort().join("");
-    const correct = q.a && norm(sel) === norm(q.a);
-    // 错题本
-    if (!correct && s.mode !== "wrong") {
-      const w = WRONG();
-      const fk = s.curFavKey;
-      if (!w[fk]) { w[fk] = makeSnapshot(s.curExam, q, s.title); LS.set("xq_wrong", w); renderTabs(); }
-    }
-    // 错题模式答对自动移出
-    if (correct && s.mode === "wrong") {
-      const w = WRONG();
-      delete w[s.curFavKey];
-      LS.set("xq_wrong", w); renderTabs();
-      toast("答对了，已移出错题本 🎉");
-    }
+    const r = await gradeOne(s.idx, { explicit: true });
+    if (!r) { toast("请先选择答案"); return; }
+    if (r.changed === "add") toast("答错了，已加入错题集 ❌");
+    else if (r.changed === "remove") toast("答对了，已移出错题本 🎉");
     renderSession();
   };
-  seeAns.onclick = () => { session.judged[session.curKey] = true; renderSession(); };
+  // 查看答案等同判分：看到答案后必须计入错题本，否则「看了答案但没点提交」就成了漏记
+  seeAns.onclick = async () => {
+    const s = session;
+    await gradeOne(s.idx, { explicit: true });
+    s.judged[ansKeyOf(s, s.idx)] = true;   // 未作答也可以查看答案/解析
+    renderSession();
+  };
   finish.onclick = async () => {
     const s = session;
     if (s.mode === "mock" && !s.done) {
@@ -659,6 +655,7 @@ async function renderSession() {
       if (!await askConfirm(msg, { title: "交卷", ok: "交卷", danger: true })) return;
       return submitMock();
     }
+    await flushPending();   // 结束练习前补判未提交的作答
     saveProgress();
     if (s.mode === "practice") location.hash = `#/cat/${s.catId}`;
     else if (s.mode === "mock") location.hash = "#/score";
@@ -682,6 +679,85 @@ function makeSnapshot(exam, q, srcTitle) {
   const mh = matHtml(exam, q.m);
   if (mh) { snap.ms = [mh]; snap.q.m = 1; }
   return snap;
+}
+
+/* ================= 判分 & 错题同步 =================
+ * 统一入口：凡是「等同于已经看过答案」的动作（提交答案 / 查看答案 / 离开前补判）都走这里，
+ * 保证错题本和实际作答一致。点选答案本身不判分（可能只是暂选、多选未选完）。
+ */
+async function resolveItem(s, i) {
+  if (s.mode === "practice") return { q: s.exam.qs[i], exam: s.exam, ref: s.ref, qi: i };
+  if (s.mode === "random" || s.mode === "mock") {
+    const r = s.refs[i];
+    const ref = `${r.c}/${r.e}`;
+    const exam = await loadExam(ref);
+    return { q: exam.qs[r.q], exam, ref, qi: r.q };
+  }
+  const snap = s.refs[i];
+  return { q: snap.q, exam: { ms: [] }, ref: snap.key, qi: i };
+}
+/* 作答状态（ans/judged）的键：练习/随机用题序号，错题/收藏用快照 key（qid） */
+function ansKeyOf(s, i) {
+  return (s.mode === "wrong" || s.mode === "fav") ? s.refs[i].key : i;
+}
+/* 判分第 i 题（跳过已判分 / 未作答），返回 {ok, changed:"add"|"remove"|null} */
+async function gradeOne(i, opt) {
+  opt = opt || {};
+  const s = session;
+  if (!s || s.mode === "mock") return null;        // 模拟考试交卷后统一处理
+  const key = ansKeyOf(s, i);
+  if (s.judged[key]) return null;
+  const sel = s.ans[key] instanceof Set ? [...s.ans[key]] : [];
+  if (!sel.length) return null;
+  const it = await resolveItem(s, i);
+  const q = it.q;
+  if (!q) return null;
+  s.judged[key] = true;
+  const ok = !!q.a && norm(sel.sort().join("")) === norm(q.a);
+  const snapMode = s.mode === "wrong" || s.mode === "fav";
+  const fk = snapMode ? s.refs[i].key : (q.qid || `${it.ref}#${it.qi}`);
+  const w = WRONG();
+  let changed = null;
+  if (!ok && s.mode !== "wrong") {
+    // 答错 → 入错题本（已在则跳过）
+    if (!w[fk]) { w[fk] = makeSnapshot(it.exam, q, s.title); LS.set("xq_wrong", w); changed = "add"; }
+  } else if (ok && w[fk]) {
+    // 答对 → 若该题在错题本里则移出（错题重刷、或之前错过又做对了，都算已掌握）
+    delete w[fk]; LS.set("xq_wrong", w); changed = "remove";
+  }
+  if (changed) renderTabs();
+  return { ok, changed };
+}
+/* 已选答案但还没判分的题数 */
+function pendingCount(s) {
+  s = s || session;
+  if (!s || s.mode === "mock" || s.mode === "wrong" || s.mode === "fav") return 0;
+  return Object.keys(s.ans).filter(k => s.ans[k] && s.ans[k].size && !s.judged[k]).length;
+}
+async function gradePending() {
+  const s = session;
+  const out = { n: 0, add: 0, remove: 0 };
+  if (!s) return out;
+  const keys = Object.keys(s.ans).filter(k => s.ans[k] && s.ans[k].size && !s.judged[k]);
+  for (const k of keys) {
+    const r = await gradeOne(+k, { batch: true });
+    if (!r) continue;
+    out.n++;
+    if (r.changed) out[r.changed]++;
+  }
+  return out;
+}
+/* 离开练习前补判：让「选了就跳下一题」的作答也能进错题本，但要先问一句，别偷偷改数据 */
+async function flushPending() {
+  const n = pendingCount(session);
+  if (!n) return;
+  const ok = await askConfirm(
+    `还有 ${n} 道题已作答但没提交、也没看答案。现在判分会同步错题集：答错的加入，答对且原来在错题集里的移出。`,
+    { title: "同步错题集", ok: "判分并同步", cancel: "直接离开" }
+  );
+  if (!ok) return;
+  const r = await gradePending();
+  toast(`已判分 ${r.n} 道${r.add ? `，新增 ${r.add} 道错题` : ""}${r.remove ? `，移出 ${r.remove} 道` : ""}`);
 }
 
 /* ================= 错题 / 收藏 ================= */
@@ -719,7 +795,7 @@ $("#mockStart").onclick = async () => {
   const mins = +$("#mockTime").value;
   toast("正在组卷，随机抽题…");
   const refs = await pickRandomRefs(scope === "all" ? null : scope, count, true);
-  if (refs.length < count * 0.6) { toast("抽题不足，请重试"); return; }
+  if (!count || !refs.length || refs.length < count * 0.6) { toast("抽题不足，请重试"); return; }
   session = {
     mode: "mock", catId: scope, title: `模拟考试 · ${scope === "all" ? "全部题库" : catName(scope)} · ${refs.length} 题`,
     refs, idx: 0, ans: {}, judged: {}, limit: mins * 60, remain: mins * 60, done: false,
@@ -763,6 +839,7 @@ function renderScore() {
   const s = session;
   if (!s) return viewHome();
   const items = scoreItems();
+  if (!items.length) { viewHome(); return; }
   const right = items.filter(x => x.ok).length;
   const wrong = items.filter(x => !x.ok && !x.blank).length;
   const blank = items.filter(x => x.blank).length;
