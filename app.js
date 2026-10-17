@@ -322,21 +322,23 @@ async function startRandom(catId) {
 }
 
 /* 从分类（或全部）随机抽 n 题，返回 qref 列表 */
-async function pickRandomRefs(catId, n, lazyOrder) {
+async function pickRandomRefs(catId, n) {
   const cats = catId ? [meta.cats.find(c => c.id === catId)] : meta.cats;
   const allRefs = [];
   for (const c of cats) {
     const idx = await loadCatIndex(c.id);
-    for (const x of shuffle(idx).slice(0, Math.max(3, Math.ceil(n / 6)))) {
-      allRefs.push({ c: c.id, e: x.id.split("/")[1], n: x.n });
-    }
+    for (const x of idx) allRefs.push({ c: c.id, e: x.id.split("/")[1], n: x.n });
   }
   const picked = [];
+  let loaded = 0;
   for (const r of shuffle(allRefs)) {
+    if (picked.length >= n || loaded >= 260) break;
+    loaded++;
     const ex = await loadExam(`${r.c}/${r.e}`);
-    const qs = shuffle(ex.qs.map((_, i) => i)).slice(0, Math.ceil(n / allRefs.length) + 1);
-    for (const qi of qs) picked.push({ c: r.c, e: r.e, q: qi });
-    if (picked.length >= n) break;
+    // 过滤掉无选项的残缺题（源库中极少）
+    const valid = ex.qs.map((q, i) => i).filter(i => Object.keys(ex.qs[i].o).length > 0);
+    const need = Math.max(2, Math.ceil((n - picked.length) / Math.max(1, allRefs.length - loaded + 1)) + 1);
+    for (const qi of shuffle(valid).slice(0, need)) picked.push({ c: r.c, e: r.e, q: qi });
   }
   return shuffle(picked).slice(0, n);
 }
@@ -363,10 +365,13 @@ async function renderSession() {
   head.append(back, src, timer, cardBtn);
   wrap.appendChild(head);
 
+  const barRow = el("div", "progress-row");
   const bar = el("div", "progress-bar");
   const barFill = el("i");
   bar.appendChild(barFill);
-  wrap.appendChild(bar);
+  const countLabel = el("span", "count-label", "");
+  barRow.append(bar, countLabel);
+  wrap.appendChild(barRow);
 
   const body = el("div");
   wrap.appendChild(body);
@@ -389,6 +394,10 @@ async function renderSession() {
     const s = session;
     const i = s.idx;
     barFill.style.width = ((i + 1) / s.refs.length * 100) + "%";
+    const answeredCount = Object.keys(s.ans).filter(k => s.ans[k] && s.ans[k].size).length;
+    countLabel.textContent = s.mode === "mock"
+      ? `已答 ${answeredCount}/${s.refs.length} · 第 ${i + 1} 题`
+      : `第 ${i + 1}/${s.refs.length} 题`;
     body.innerHTML = "";
     prev.disabled = i === 0;
     next.disabled = i === s.refs.length - 1;
@@ -423,9 +432,20 @@ async function renderSession() {
         const multi = (q.a || "").length > 1;
         if (multi) { set.has(k) ? set.delete(k) : set.add(k); }
         else { set.clear(); set.add(k); }
-        if (!multi && !s.judged[key]) { /* 单选自动判分更顺手? 保留手动提交 */ }
         s.ans[key] = set;
         renderSession();
+        // 模拟考试：单选/判断类题目点选后自动进入下一题
+        if (s.mode === "mock" && !s.done && !multi) {
+          setTimeout(() => {
+            if (session !== s || s.done) return;
+            if (s.idx < s.refs.length - 1) s.idx++;
+            else {
+              const done = Object.keys(s.ans).filter(x => s.ans[x] && s.ans[x].size).length;
+              toast(done >= s.refs.length ? "已全部作答，可以交卷了 🎉" : "已是最后一题，可检查答题卡后交卷");
+            }
+            renderSession();
+          }, 260);
+        }
       },
       onFav(btn) {
         const f = FAV();
@@ -441,9 +461,13 @@ async function renderSession() {
     // 按钮状态
     const answered = (s.ans[key] || new Set()).size > 0;
     const mockLive = s.mode === "mock" && !s.done;
-    submit.disabled = mockLive ? false : (judged || s.done || !answered);
-    seeAns.disabled = s.mode === "mock" ? true : (judged || s.done);
-    if (s.done) { submit.disabled = true; seeAns.disabled = true; finish.textContent = "返回成绩"; }
+    const multiQ = (q.a || "").length > 1;
+    // 模拟考试单选类：点选即自动跳题，无需提交按钮；多选题保留「确认作答」
+    submit.style.display = mockLive && !multiQ ? "none" : "";
+    seeAns.style.display = mockLive || s.done ? "none" : "";
+    submit.disabled = mockLive ? !answered : (judged || s.done || !answered);
+    seeAns.disabled = judged || s.done;
+    if (s.done) { submit.disabled = true; finish.textContent = "返回成绩"; }
   }
 
   prev.onclick = () => { saveProgress(); session.idx--; renderSession(); };

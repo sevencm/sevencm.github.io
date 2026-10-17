@@ -194,8 +194,10 @@ select.sel {
 .btn.ghost { background: transparent; }
 .icon-btn { background: none; border: none; font-size: 16px; color: var(--sub); padding: 4px 8px; }
 
-.progress-bar { height: 5px; background: #e6eaf2; border-radius: 3px; overflow: hidden; margin-bottom: 14px; }
+.progress-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.progress-bar { flex: 1; height: 5px; background: #e6eaf2; border-radius: 3px; overflow: hidden; }
 .progress-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--pri), #5b93f0); transition: width .25s; }
+.count-label { font-size: 12px; color: var(--sub); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 /* ---------- 成绩页 ---------- */
 .score-card {
