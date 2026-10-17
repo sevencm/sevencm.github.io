@@ -79,13 +79,14 @@ python3 tools/build_data.py --src /path/to/xingcezhenti --out .
 ```
 ├── index.html / style.css / app.js   # 单页应用（原生 JS，无依赖）
 ├── .nojekyll                         # 跳过 Jekyll 处理
+├── .env.example                      # 数据管道路径配置示例（复制为 .env 使用，.env 已被忽略）
 ├── data/
 │   ├── meta.json                     # 分类总览
 │   └── <01..06>/
 │       ├── index.json                # 该模块试卷列表
 │       └── NNNN.json                 # 每套卷：材料 + 题目 + 答案 + 官方解析
 ├── img/题目图/ img/公式图/            # 题面图形与解析公式图
-└── tools/                            # 数据管道脚本
+└── tools/                            # 数据管道脚本（config.py 统一读取路径配置）
 ```
 
 ## 数据说明
