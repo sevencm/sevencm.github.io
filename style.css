@@ -263,6 +263,11 @@ select.sel {
 .check-row input { width: 16px; height: 16px; accent-color: var(--pri); }
 .check-row.hide { display: none; }
 
+/* 通用确认弹窗 */
+#cfMsg { font-size: 13.5px; color: var(--txt); line-height: 1.65; margin: 2px 0 16px; }
+#cfYes.btn.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+#cfYes.btn.danger:hover { opacity: .9; color: #fff; }
+
 /* ---------- toast ---------- */
 .toast {
   position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(20px);

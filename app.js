@@ -49,6 +49,27 @@ const fmtTime = s => { s = Math.max(0, Math.floor(s)); const m = Math.floor(s / 
 function setBody(v) { const app = $("#app"); app.innerHTML = ""; app.appendChild(v); window.scrollTo(0, 0); }
 let toastTimer;
 function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), 1800); }
+
+/* 站内确认弹窗：部分内嵌 webview / 移动端会屏蔽原生 confirm，改用自绘弹窗 */
+let cfResolve = null;
+function askConfirm(msg, opt) {
+  opt = opt || {};
+  return new Promise(resolve => {
+    cfResolve = resolve;
+    $("#cfTitle").textContent = opt.title || "提示";
+    $("#cfMsg").textContent = msg;
+    const yes = $("#cfYes");
+    yes.textContent = opt.ok || "确定";
+    yes.className = "btn " + (opt.danger ? "danger" : "primary");
+    $("#cfNo").textContent = opt.cancel || "取消";
+    $("#cfModal").classList.add("show");
+  });
+}
+function settleConfirm(v) {
+  $("#cfModal").classList.remove("show");
+  const r = cfResolve; cfResolve = null;
+  if (r) r(v);
+}
 const norm = s => (s || "").toUpperCase().split("").sort().join("");
 function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 function isHtmlContent(s) { return isHtml(s); }
@@ -374,10 +395,16 @@ async function renderSession() {
   // 头部
   const head = el("div", "p-header");
   const back = el("button", "btn", "← 退出");
-  back.onclick = () => {
-    if (s.mode === "mock" && !s.done) { if (!confirm("考试尚未交卷，确定退出？")) return; stopTimer(); }
+  back.onclick = async () => {
+    const isMockLive = s.mode === "mock" && !s.done;
+    if (isMockLive) {
+      const ok = await askConfirm("考试尚未交卷，退出后本次作答将不会保存。确定要退出吗？", { title: "退出考试", ok: "确定退出", danger: true });
+      if (!ok) return;
+      stopTimer();
+    }
     if (s._save) s._save();
     location.hash = s.mode === "practice" ? `#/cat/${s.catId}` : s.mode === "wrong" || s.mode === "fav" ? `#/${s.mode}` : "#/";
+    if (isMockLive) { session = null; renderTabs(); }
   };
   const src = el("span", "src", esc(s.title));
   const timer = el("span", "timer", "00:00");
@@ -519,11 +546,12 @@ async function renderSession() {
     renderSession();
   };
   seeAns.onclick = () => { session.judged[session.curKey] = true; renderSession(); };
-  finish.onclick = () => {
+  finish.onclick = async () => {
     const s = session;
     if (s.mode === "mock" && !s.done) {
       const un = s.refs.length - Object.keys(s.ans).filter(k => s.ans[k] && s.ans[k].size).length;
-      if (!confirm(`还有 ${un} 题未作答，确定交卷？`)) return;
+      const msg = un ? `还有 ${un} 题未作答，确定交卷吗？` : "全部题目已作答，确定交卷吗？";
+      if (!await askConfirm(msg, { title: "交卷", ok: "交卷", danger: true })) return;
       return submitMock();
     }
     saveProgress();
@@ -745,6 +773,10 @@ $("#cardClose").onclick = () => { $("#cardDrawer").classList.remove("show"); $("
 $("#cardMask").onclick = () => { $("#cardDrawer").classList.remove("show"); $("#cardMask").classList.remove("show"); };
 $("#brand").onclick = () => location.hash = "#/";
 $("#awModal").onclick = e => { if (e.target.id === "awModal") $("#awModal").classList.remove("show"); };
+$("#cfYes").onclick = () => settleConfirm(true);
+$("#cfNo").onclick = () => settleConfirm(false);
+$("#cfModal").onclick = e => { if (e.target.id === "cfModal") settleConfirm(false); };
+document.addEventListener("keydown", e => { if (e.key === "Escape" && cfResolve) settleConfirm(false); });
 
 /* ================= 启动 ================= */
 route();
