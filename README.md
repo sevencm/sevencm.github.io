@@ -1,5 +1,7 @@
 # 行测刷题 · 2016–2026 真题
 
+**在线练习：<https://sevencm.github.io/>**
+
 纯静态行测刷题网站（GitHub Pages 托管），题库为 2016–2026 年国考 / 省考 / 联考 / 选调行测真题，共 **6 大模块 · 515 套卷 · 58,890 题**，含官方解析与 39,000+ 张题目/公式图片。
 
 > 题库来源：[ERRRC/xingcezhenti](https://github.com/ERRRC/xingcezhenti)（行测真题整理仓库），本站只做解析与练习界面。
@@ -15,15 +17,26 @@
 - ☰ **答题卡**：快速跳题，实时标示已答 / 答对 / 答错
 - 💾 **进度持久化**：练习进度、错题、收藏保存在浏览器 localStorage，关掉页面下次继续
 
-## 使用
+## 在线访问
 
-线上地址：**https://sevencm.github.io/**（GitHub Pages，用户主页仓库 `sevencm/sevencm.github.io`，main 分支根目录）
+[https://sevencm.github.io/](https://sevencm.github.io/)
 
-本地改动后发布：
+也可以直接点这里 → <https://sevencm.github.io/>
+
+托管方式：GitHub 用户主页仓库 [`sevencm/sevencm.github.io`](https://github.com/sevencm/sevencm.github.io)，部署在 `main` 分支根目录，推送到 main 后 1–2 分钟自动构建。
+
+本地预览：
+
+```bash
+python3 -m http.server 8000
+# 打开 http://127.0.0.1:8000
+```
+
+后续更新发布：
 
 ```bash
 git add -A && git commit -m "更新说明"
-git push origin main   # 推送后 1–2 分钟自动构建
+git push origin main
 ```
 
 如需部署到别的仓库：
